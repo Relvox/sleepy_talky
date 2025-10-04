@@ -47,6 +47,13 @@ function updateTimer() {
 
 recordBtn.onclick = async () => {
   try {
+    // Check browser compatibility
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error(
+        "Your browser doesn't support audio recording. Try using HTTPS or a modern browser.",
+      );
+    }
+
     showFeedback("🎤 Requesting microphone access...");
     updateState("🔐 Requesting permission...", "idle");
 
