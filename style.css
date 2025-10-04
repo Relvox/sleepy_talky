@@ -112,6 +112,10 @@ button:disabled {
     background: #95a5a6;
 }
 
+#play {
+    background: #3498db;
+}
+
 #download {
     background: #27ae60;
     font-size: 24px;
