@@ -1,0 +1,133 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    font-family: sans-serif;
+    background: #1a1a1a;
+    color: #fff;
+    flex-direction: column;
+    padding: 20px;
+}
+
+#status {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    padding: 15px 30px;
+    border-radius: 8px;
+    background: #2c3e50;
+    min-width: 300px;
+    text-align: center;
+}
+
+#status.idle {
+    background: #34495e;
+}
+
+#status.recording {
+    background: #c0392b;
+    animation: pulse 1.5s infinite;
+}
+
+#status.stopped {
+    background: #27ae60;
+}
+
+#status.error {
+    background: #e67e22;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+#timer {
+    font-size: 36px;
+    margin: 10px 0;
+    font-family: monospace;
+    min-height: 50px;
+}
+
+#feedback {
+    font-size: 16px;
+    margin: 10px 0;
+    padding: 10px 20px;
+    border-radius: 5px;
+    background: #34495e;
+    min-width: 300px;
+    text-align: center;
+    min-height: 24px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+#feedback.show {
+    opacity: 1;
+}
+
+.controls {
+    margin: 20px 0;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+button {
+    font-size: 48px;
+    padding: 40px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition:
+        transform 0.1s,
+        opacity 0.3s;
+}
+
+button:hover:not(:disabled) {
+    transform: scale(1.1);
+}
+
+button:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+#record {
+    background: #e74c3c;
+}
+
+#stop {
+    background: #95a5a6;
+}
+
+#download {
+    background: #27ae60;
+    font-size: 24px;
+    padding: 20px 40px;
+    border-radius: 8px;
+}
+
+#stateInfo {
+    margin-top: 20px;
+    padding: 15px;
+    background: #2c3e50;
+    border-radius: 8px;
+    font-size: 14px;
+    min-width: 300px;
+}
+
+#stateInfo div {
+    margin: 5px 0;
+}
