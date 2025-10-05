@@ -54,6 +54,8 @@ export class UIManager {
       this.elements.playBtn.disabled = !states.play;
     if (states.download !== undefined)
       this.elements.downloadBtn.disabled = !states.download;
+    if (states.upload !== undefined)
+      this.elements.uploadBtn.disabled = !states.upload;
   }
 
   setPlayButtonText(isPlaying) {

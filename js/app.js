@@ -1,7 +1,7 @@
-import { AudioRecorder } from './audio/recorder.js';
-import { AudioPlayer } from './audio/player.js';
-import { VisualizationManager } from './visualizers/visualizationManager.js';
-import { UIManager } from './ui/uiManager.js';
+import { AudioRecorder } from "./audio/recorder.js";
+import { AudioPlayer } from "./audio/player.js";
+import { VisualizationManager } from "./visualizers/visualizationManager.js";
+import { UIManager } from "./ui/uiManager.js";
 
 class SleepRecorderApp {
   constructor() {
@@ -14,9 +14,9 @@ class SleepRecorderApp {
         frequency: this.elements.frequencyCanvas,
         lowFreq: this.elements.lowFreqCanvas,
         midFreq: this.elements.midFreqCanvas,
-        highFreq: this.elements.highFreqCanvas
+        highFreq: this.elements.highFreqCanvas,
       },
-      this.elements.volumeLevel
+      this.elements.volumeLevel,
     );
     this.ui = new UIManager(this.elements);
 
@@ -33,6 +33,8 @@ class SleepRecorderApp {
       stopBtn: document.getElementById("stop"),
       playBtn: document.getElementById("play"),
       downloadBtn: document.getElementById("download"),
+      uploadBtn: document.getElementById("upload"),
+      fileInput: document.getElementById("fileInput"),
       audioPlayer: document.getElementById("audioPlayer"),
       waveformCanvas: document.getElementById("waveform"),
       frequencyCanvas: document.getElementById("frequency"),
@@ -46,7 +48,7 @@ class SleepRecorderApp {
       recorderState: document.getElementById("recorderState"),
       audioState: document.getElementById("audioState"),
       dataState: document.getElementById("dataState"),
-      blobState: document.getElementById("blobState")
+      blobState: document.getElementById("blobState"),
     };
   }
 
@@ -55,6 +57,8 @@ class SleepRecorderApp {
     this.elements.stopBtn.onclick = () => this.handleStop();
     this.elements.playBtn.onclick = () => this.handlePlay();
     this.elements.downloadBtn.onclick = () => this.handleDownload();
+    this.elements.uploadBtn.onclick = () => this.handleUpload();
+    this.elements.fileInput.onchange = (e) => this.handleFileSelected(e);
     this.elements.toggleDisplayBtn.onclick = () => this.handleToggleDisplay();
 
     // Recorder callbacks
@@ -92,7 +96,8 @@ class SleepRecorderApp {
         record: false,
         stop: true,
         play: false,
-        download: false
+        download: false,
+        upload: false,
       });
     } catch (error) {
       this.ui.showFeedback(`❌ Error: ${error.message}`);
@@ -119,7 +124,8 @@ class SleepRecorderApp {
       record: true,
       stop: false,
       play: true,
-      download: true
+      download: true,
+      upload: true,
     });
     this.ui.clearTimer();
     this.updateStateDisplay();
@@ -136,7 +142,9 @@ class SleepRecorderApp {
     if (this.player.hasAudio()) {
       const isPlaying = this.player.play();
       if (isPlaying !== null) {
-        this.ui.showFeedback(isPlaying ? "▶️ Playing recording..." : "⏸️ Paused playback");
+        this.ui.showFeedback(
+          isPlaying ? "▶️ Playing recording..." : "⏸️ Paused playback",
+        );
         this.ui.setPlayButtonText(isPlaying);
       }
     } else {
@@ -157,6 +165,34 @@ class SleepRecorderApp {
     }
   }
 
+  handleUpload() {
+    this.elements.fileInput.click();
+  }
+
+  handleFileSelected(event) {
+    const file = event.target.files[0];
+    if (file) {
+      if (!file.type.startsWith("audio/")) {
+        this.ui.showFeedback("❌ Please select an audio file");
+        return;
+      }
+
+      this.ui.showFeedback("📁 Loading file...");
+      const url = URL.createObjectURL(file);
+      this.player.load(url);
+      this.ui.updateStatus("✅ File loaded!", "stopped");
+      this.ui.setButtonStates({
+        record: true,
+        stop: false,
+        play: true,
+        download: true,
+        upload: true,
+      });
+      this.updateStateDisplay();
+      this.ui.showFeedback("✅ File ready for playback!");
+    }
+  }
+
   handleToggleDisplay() {
     const currentMode = this.visualizer.getDisplayMode();
     const newMode = currentMode === "bands" ? "spectral" : "bands";
@@ -171,12 +207,12 @@ class SleepRecorderApp {
       recorderState.streamActive,
       recorderState.chunksCount,
       recorderState.totalBytes,
-      this.player.hasAudio()
+      this.player.hasAudio(),
     );
   }
 }
 
 // Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   new SleepRecorderApp();
 });
