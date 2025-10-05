@@ -56,6 +56,8 @@ export class UIManager {
       this.elements.downloadBtn.disabled = !states.download;
     if (states.upload !== undefined)
       this.elements.uploadBtn.disabled = !states.upload;
+    if (states.scan !== undefined)
+      this.elements.scanBtn.disabled = !states.scan;
   }
 
   setPlayButtonText(isPlaying) {
@@ -90,13 +92,20 @@ export class UIManager {
   }
 
   toggleVisualizerDisplay(mode) {
+    // Hide all views first
+    this.elements.frequencyBandsView.style.display = "none";
+    this.elements.spectralView.style.display = "none";
+    this.elements.eventsView.style.display = "none";
+
+    // Show selected view and update button text
     if (mode === "bands") {
-      this.elements.frequencyBandsView.style.display = "block";
-      this.elements.spectralView.style.display = "none";
+      this.elements.frequencyBandsView.style.display = "flex";
       this.elements.toggleDisplayBtn.textContent = "Switch to Waveform/FFT";
-    } else {
-      this.elements.frequencyBandsView.style.display = "none";
-      this.elements.spectralView.style.display = "block";
+    } else if (mode === "spectral") {
+      this.elements.spectralView.style.display = "flex";
+      this.elements.toggleDisplayBtn.textContent = "Switch to Events";
+    } else if (mode === "events") {
+      this.elements.eventsView.style.display = "flex";
       this.elements.toggleDisplayBtn.textContent = "Switch to Frequency Bands";
     }
   }

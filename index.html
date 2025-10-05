@@ -22,7 +22,12 @@
                 <canvas id="waveform" width="800" height="150"></canvas>
                 <canvas id="frequency" width="800" height="150"></canvas>
             </div>
+            <div id="eventsView" style="display: none">
+                <canvas id="eventsCanvas" width="800" height="200"></canvas>
+                <div id="eventsContainer"></div>
+            </div>
             <div id="volumeLevel">Volume: --</div>
+            <div id="baselineLevel" style="display: none">Baseline: --</div>
         </div>
 
         <div class="controls">
@@ -31,6 +36,7 @@
             <button id="play" disabled>▶️</button>
             <button id="download" disabled>💾</button>
             <button id="upload">📁</button>
+            <button id="scan" disabled>🔍</button>
         </div>
 
         <div class="progress-container">
@@ -50,7 +56,8 @@
         <input
             type="file"
             id="fileInput"
-            accept="audio/*"
+            accept="audio/*,.json"
+            multiple
             style="display: none"
         />
 

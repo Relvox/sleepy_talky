@@ -2,6 +2,8 @@ import { AudioRecorder } from "./audio/recorder.js";
 import { AudioPlayer } from "./audio/player.js";
 import { VisualizationManager } from "./visualizers/visualizationManager.js";
 import { UIManager } from "./ui/uiManager.js";
+import { NoiseDetector } from "./detection/noiseDetector.js";
+import { OfflineAudioAnalyzer } from "./detection/offlineAnalyzer.js";
 
 class SleepRecorderApp {
   constructor() {
@@ -15,10 +17,16 @@ class SleepRecorderApp {
         lowFreq: this.elements.lowFreqCanvas,
         midFreq: this.elements.midFreqCanvas,
         highFreq: this.elements.highFreqCanvas,
+        events: this.elements.eventsCanvas,
+        eventsContainer: this.elements.eventsContainer,
       },
       this.elements.volumeLevel,
     );
     this.ui = new UIManager(this.elements);
+    this.noiseDetector = new NoiseDetector();
+    this.offlineAnalyzer = new OfflineAudioAnalyzer();
+    this.recordingBlob = null;
+    this.uploadedAudioBlob = null;
 
     this.setupEventHandlers();
     this.updateStateDisplay();
@@ -34,6 +42,7 @@ class SleepRecorderApp {
       playBtn: document.getElementById("play"),
       downloadBtn: document.getElementById("download"),
       uploadBtn: document.getElementById("upload"),
+      scanBtn: document.getElementById("scan"),
       fileInput: document.getElementById("fileInput"),
       progressSlider: document.getElementById("progressSlider"),
       currentTime: document.getElementById("currentTime"),
@@ -45,9 +54,13 @@ class SleepRecorderApp {
       midFreqCanvas: document.getElementById("midFreq"),
       highFreqCanvas: document.getElementById("highFreq"),
       volumeLevel: document.getElementById("volumeLevel"),
+      baselineLevel: document.getElementById("baselineLevel"),
       toggleDisplayBtn: document.getElementById("toggleDisplay"),
       frequencyBandsView: document.getElementById("frequencyBandsView"),
       spectralView: document.getElementById("spectralView"),
+      eventsView: document.getElementById("eventsView"),
+      eventsCanvas: document.getElementById("eventsCanvas"),
+      eventsContainer: document.getElementById("eventsContainer"),
       recorderState: document.getElementById("recorderState"),
       audioState: document.getElementById("audioState"),
       dataState: document.getElementById("dataState"),
@@ -61,6 +74,7 @@ class SleepRecorderApp {
     this.elements.playBtn.onclick = () => this.handlePlay();
     this.elements.downloadBtn.onclick = () => this.handleDownload();
     this.elements.uploadBtn.onclick = () => this.handleUpload();
+    this.elements.scanBtn.onclick = () => this.handleScan();
     this.elements.fileInput.onchange = (e) => this.handleFileSelected(e);
     this.elements.toggleDisplayBtn.onclick = () => this.handleToggleDisplay();
     this.elements.progressSlider.oninput = (e) => this.handleSeek(e);
@@ -88,6 +102,11 @@ class SleepRecorderApp {
     };
     this.player.onTimeUpdate = () => this.updateProgress();
     this.player.onLoadedMetadata = () => this.updateDuration();
+
+    // Noise detector callbacks
+    this.noiseDetector.onBaselineUpdated = (baseline) => {
+      this.elements.baselineLevel.textContent = `Baseline: ${baseline.toFixed(1)} dB`;
+    };
   }
 
   async handleRecord() {
@@ -104,6 +123,10 @@ class SleepRecorderApp {
       this.visualizer.setAnalyser(analyser);
       this.visualizer.start();
 
+      // Start noise detection
+      this.noiseDetector.start(analyser, Date.now());
+      this.elements.baselineLevel.style.display = "block";
+
       this.ui.updateStatus("🔴 Recording...", "recording");
       this.ui.showFeedback("🔴 Recording started!");
       this.ui.setButtonStates({
@@ -112,6 +135,7 @@ class SleepRecorderApp {
         play: false,
         download: false,
         upload: false,
+        scan: false,
       });
     } catch (error) {
       this.ui.showFeedback(`❌ Error: ${error.message}`);
@@ -126,6 +150,7 @@ class SleepRecorderApp {
       this.ui.updateStatus("⏹️ Stopping...", "idle");
       this.recorder.stop();
       this.visualizer.stop();
+      this.noiseDetector.stop();
       this.updateStateDisplay();
     }
   }
@@ -134,6 +159,20 @@ class SleepRecorderApp {
     this.ui.showFeedback("💾 Processing recording...");
     this.player.load(url);
     this.recordedMimeType = mimeType;
+    this.recordingBlob = blob;
+
+    // Get noise events and update visualization
+    const events = this.noiseDetector.getEvents();
+    const duration = this.player.getDuration() * 1000; // Convert to ms
+
+    if (events.length > 0) {
+      this.ui.showFeedback(`📊 Detected ${events.length} noise event(s)`);
+      this.visualizer.updateEvents(events, duration);
+      this.visualizer.renderEventsList(events, (event, index) =>
+        this.playEvent(event, index),
+      );
+    }
+
     this.ui.updateStatus("✅ Recording saved!", "stopped");
     this.ui.setButtonStates({
       record: true,
@@ -141,6 +180,7 @@ class SleepRecorderApp {
       play: true,
       download: true,
       upload: true,
+      scan: true,
     });
     this.ui.clearTimer();
     this.ui.resetProgress();
@@ -170,9 +210,15 @@ class SleepRecorderApp {
 
   handleDownload() {
     if (this.player.hasAudio()) {
-      this.ui.showFeedback("💾 Downloading file...");
-      const a = document.createElement("a");
-      a.href = this.player.url;
+      this.ui.showFeedback("💾 Downloading files...");
+      const timestamp = new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/:/g, "-");
+
+      // Download audio file
+      const audioLink = document.createElement("a");
+      audioLink.href = this.player.url;
 
       // Determine file extension from MIME type
       let extension = "webm";
@@ -184,9 +230,29 @@ class SleepRecorderApp {
         }
       }
 
-      a.download = `sleep-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.${extension}`;
-      a.click();
-      this.ui.showFeedback("✅ Download started!");
+      audioLink.download = `sleep-${timestamp}.${extension}`;
+      audioLink.click();
+
+      // Download manifest if events exist
+      const events = this.noiseDetector.getEvents();
+      if (events && events.length > 0) {
+        const manifest = this.noiseDetector.getManifest();
+        const manifestJson = JSON.stringify(manifest, null, 2);
+        const manifestBlob = new Blob([manifestJson], {
+          type: "application/json",
+        });
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+
+        const manifestLink = document.createElement("a");
+        manifestLink.href = manifestUrl;
+        manifestLink.download = `sleep-${timestamp}-manifest.json`;
+        manifestLink.click();
+
+        URL.revokeObjectURL(manifestUrl);
+        this.ui.showFeedback("✅ Audio + manifest downloaded!");
+      } else {
+        this.ui.showFeedback("✅ Download started!");
+      }
     } else {
       this.ui.showFeedback("❌ No recording available");
     }
@@ -196,7 +262,7 @@ class SleepRecorderApp {
     this.elements.fileInput.click();
   }
 
-  handleFileSelected(event) {
+  async handleFileSelected(event) {
     const file = event.target.files[0];
     if (file) {
       if (!file.type.startsWith("audio/")) {
@@ -207,6 +273,11 @@ class SleepRecorderApp {
       this.ui.showFeedback("📁 Loading file...");
       const url = URL.createObjectURL(file);
       this.player.load(url);
+      this.uploadedAudioBlob = file; // Store for analysis
+
+      // Try to load manifest file with same name
+      await this.tryLoadManifest(file);
+
       this.ui.updateStatus("✅ File loaded!", "stopped");
       this.ui.setButtonStates({
         record: true,
@@ -214,10 +285,113 @@ class SleepRecorderApp {
         play: true,
         download: true,
         upload: true,
+        scan: true,
       });
       this.ui.resetProgress();
       this.updateStateDisplay();
       this.ui.showFeedback("✅ File ready for playback!");
+    }
+  }
+
+  async tryLoadManifest(audioFile) {
+    try {
+      // Look for manifest file with same name
+      const baseName = audioFile.name.replace(/\.[^/.]+$/, ""); // Remove extension
+      const manifestName = `${baseName}-manifest.json`;
+
+      // Create a file input to check if manifest exists in same selection
+      const files = Array.from(this.elements.fileInput.files);
+      const manifestFile = files.find((f) => f.name === manifestName);
+
+      if (manifestFile) {
+        const manifestText = await manifestFile.text();
+        const manifest = JSON.parse(manifestText);
+
+        // Load manifest into noise detector
+        this.noiseDetector.loadManifest(manifest);
+
+        // Update UI with loaded events
+        const events = this.noiseDetector.getEvents();
+        const duration = this.player.getDuration() * 1000;
+
+        if (events.length > 0) {
+          this.visualizer.updateEvents(events, duration);
+          this.visualizer.renderEventsList(events, (event, index) =>
+            this.playEvent(event, index),
+          );
+          this.elements.baselineLevel.style.display = "block";
+          this.elements.baselineLevel.textContent = `Baseline: ${manifest.baselineValue.toFixed(1)} dB`;
+          this.ui.showFeedback(
+            `📋 Loaded manifest with ${events.length} event(s)`,
+          );
+        }
+      }
+    } catch (error) {
+      // Silently fail if no manifest found
+      console.log("No manifest file found:", error);
+    }
+  }
+
+  async handleScan() {
+    if (!this.player.hasAudio() || !this.uploadedAudioBlob) {
+      this.ui.showFeedback("❌ No audio file loaded");
+      return;
+    }
+
+    try {
+      this.ui.showFeedback("🔍 Analyzing audio for noise events...");
+      this.ui.updateStatus("🔍 Scanning...", "recording");
+      this.elements.scanBtn.disabled = true;
+
+      // Reset noise detector
+      this.noiseDetector = new NoiseDetector();
+
+      // Analyze the audio file (without playback)
+      const { volumeSamples, duration } =
+        await this.offlineAnalyzer.analyzeFile(
+          this.uploadedAudioBlob,
+          (progress) => {
+            this.ui.updateStatus(
+              `🔍 Scanning... ${Math.round(progress)}%`,
+              "recording",
+            );
+          },
+        );
+
+      // Process samples through noise detector
+      await this.offlineAnalyzer.analyzeSamples(
+        volumeSamples,
+        duration,
+        this.noiseDetector,
+      );
+
+      // Update UI with results
+      const events = this.noiseDetector.getEvents();
+      const baseline = this.noiseDetector.getBaseline();
+
+      this.elements.baselineLevel.style.display = "block";
+      this.elements.baselineLevel.textContent = `Baseline: ${baseline.toFixed(1)} dB`;
+
+      if (events.length > 0) {
+        this.visualizer.updateEvents(events, duration);
+        this.visualizer.renderEventsList(events, (event, index) =>
+          this.playEvent(event, index),
+        );
+        this.ui.showFeedback(`✅ Found ${events.length} noise event(s)!`);
+
+        // Switch to events view
+        this.visualizer.setDisplayMode("events");
+        this.ui.toggleVisualizerDisplay("events");
+      } else {
+        this.ui.showFeedback("✅ No noise events detected");
+      }
+
+      this.ui.updateStatus("✅ Scan complete!", "stopped");
+      this.elements.scanBtn.disabled = false;
+    } catch (error) {
+      this.ui.showFeedback(`❌ Scan error: ${error.message}`);
+      this.ui.updateStatus("❌ Scan failed", "error");
+      this.elements.scanBtn.disabled = false;
     }
   }
 
@@ -258,9 +432,25 @@ class SleepRecorderApp {
 
   handleToggleDisplay() {
     const currentMode = this.visualizer.getDisplayMode();
-    const newMode = currentMode === "bands" ? "spectral" : "bands";
+    let newMode = "bands";
+
+    if (currentMode === "bands") {
+      newMode = "spectral";
+    } else if (currentMode === "spectral") {
+      newMode = "events";
+    } else {
+      newMode = "bands";
+    }
+
     this.visualizer.setDisplayMode(newMode);
     this.ui.toggleVisualizerDisplay(newMode);
+  }
+
+  playEvent(event, index) {
+    const startTime = event.startTime / 1000; // Convert to seconds
+    this.player.seek(startTime);
+    this.player.play();
+    this.ui.showFeedback(`▶️ Playing event ${index + 1}`);
   }
 
   updateStateDisplay() {

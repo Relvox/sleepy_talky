@@ -1,5 +1,6 @@
 import { FrequencyBandsVisualizer } from "./frequencyBands.js";
 import { SpectralVisualizer } from "./spectral.js";
+import { EventsListVisualizer } from "./eventsList.js";
 
 // Constants for visualization manager
 const WAVEFORM_NORMALIZATION_OFFSET = 128;
@@ -16,6 +17,10 @@ export class VisualizationManager {
     this.spectral = new SpectralVisualizer(
       canvases.waveform,
       canvases.frequency,
+    );
+    this.eventsList = new EventsListVisualizer(
+      canvases.events,
+      canvases.eventsContainer,
     );
 
     this.volumeElement = volumeElement;
@@ -49,9 +54,10 @@ export class VisualizationManager {
 
       if (this.displayMode === "bands") {
         this.frequencyBands.update(dataArray, bufferLength);
-      } else {
+      } else if (this.displayMode === "spectral") {
         this.spectral.update(dataArray, waveformData, bufferLength);
       }
+      // Events view doesn't need real-time updates
     };
 
     draw();
@@ -82,6 +88,7 @@ export class VisualizationManager {
   clear() {
     this.frequencyBands.clear();
     this.spectral.clear();
+    this.eventsList.clear();
     this.volumeElement.textContent = "Volume: --";
   }
 
@@ -91,5 +98,13 @@ export class VisualizationManager {
 
   getDisplayMode() {
     return this.displayMode;
+  }
+
+  updateEvents(events, duration) {
+    this.eventsList.update(events, duration);
+  }
+
+  renderEventsList(events, onPlayEvent) {
+    this.eventsList.renderEventsList(events, onPlayEvent);
   }
 }
