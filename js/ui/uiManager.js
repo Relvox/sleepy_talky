@@ -62,6 +62,33 @@ export class UIManager {
     this.elements.playBtn.textContent = isPlaying ? "⏸️" : "▶️";
   }
 
+  updateProgress(currentTime, duration) {
+    if (duration > 0) {
+      const progress = (currentTime / duration) * 100;
+      this.elements.progressSlider.value = progress;
+      this.elements.currentTime.textContent = this.formatTime(currentTime);
+    }
+  }
+
+  updateDuration(duration) {
+    this.elements.duration.textContent = this.formatTime(duration);
+    this.elements.progressSlider.disabled = false;
+  }
+
+  formatTime(seconds) {
+    if (!isFinite(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${String(secs).padStart(TIME_DISPLAY_PADDING, TIME_PAD_CHAR)}`;
+  }
+
+  resetProgress() {
+    this.elements.progressSlider.value = 0;
+    this.elements.progressSlider.disabled = true;
+    this.elements.currentTime.textContent = "0:00";
+    this.elements.duration.textContent = "0:00";
+  }
+
   toggleVisualizerDisplay(mode) {
     if (mode === "bands") {
       this.elements.frequencyBandsView.style.display = "block";

@@ -76,6 +76,10 @@ export class VisualizationManager {
       this.animationId = null;
     }
 
+    this.clear();
+  }
+
+  clear() {
     this.frequencyBands.clear();
     this.spectral.clear();
     this.volumeElement.textContent = "Volume: --";

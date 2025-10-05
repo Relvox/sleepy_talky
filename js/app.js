@@ -35,6 +35,9 @@ class SleepRecorderApp {
       downloadBtn: document.getElementById("download"),
       uploadBtn: document.getElementById("upload"),
       fileInput: document.getElementById("fileInput"),
+      progressSlider: document.getElementById("progressSlider"),
+      currentTime: document.getElementById("currentTime"),
+      duration: document.getElementById("duration"),
       audioPlayer: document.getElementById("audioPlayer"),
       waveformCanvas: document.getElementById("waveform"),
       frequencyCanvas: document.getElementById("frequency"),
@@ -60,20 +63,31 @@ class SleepRecorderApp {
     this.elements.uploadBtn.onclick = () => this.handleUpload();
     this.elements.fileInput.onchange = (e) => this.handleFileSelected(e);
     this.elements.toggleDisplayBtn.onclick = () => this.handleToggleDisplay();
+    this.elements.progressSlider.oninput = (e) => this.handleSeek(e);
 
     // Recorder callbacks
     this.recorder.onDataAvailable = () => this.updateStateDisplay();
-    this.recorder.onStop = (url, blob) => this.handleRecordingStop(url, blob);
+    this.recorder.onStop = (url, blob, mimeType) =>
+      this.handleRecordingStop(url, blob, mimeType);
     this.recorder.onError = (error) => this.handleRecordingError(error);
     this.recorder.onTimer = (elapsed) => this.ui.updateTimer(elapsed);
 
     // Player callbacks
-    this.player.onPlay = () => this.ui.updateStatus("▶️ Playing...", "idle");
-    this.player.onPause = () => this.ui.updateStatus("⏸️ Paused", "idle");
+    this.player.onPlay = () => {
+      this.ui.updateStatus("▶️ Playing...", "idle");
+      this.startPlaybackVisualization();
+    };
+    this.player.onPause = () => {
+      this.ui.updateStatus("⏸️ Paused", "idle");
+      this.stopPlaybackVisualization();
+    };
     this.player.onEnded = () => {
       this.ui.showFeedback("✅ Playback finished");
       this.ui.setPlayButtonText(false);
+      this.stopPlaybackVisualization();
     };
+    this.player.onTimeUpdate = () => this.updateProgress();
+    this.player.onLoadedMetadata = () => this.updateDuration();
   }
 
   async handleRecord() {
@@ -116,9 +130,10 @@ class SleepRecorderApp {
     }
   }
 
-  handleRecordingStop(url, blob) {
+  handleRecordingStop(url, blob, mimeType) {
     this.ui.showFeedback("💾 Processing recording...");
     this.player.load(url);
+    this.recordedMimeType = mimeType;
     this.ui.updateStatus("✅ Recording saved!", "stopped");
     this.ui.setButtonStates({
       record: true,
@@ -128,6 +143,7 @@ class SleepRecorderApp {
       upload: true,
     });
     this.ui.clearTimer();
+    this.ui.resetProgress();
     this.updateStateDisplay();
     this.ui.showFeedback("✅ Recording ready for playback!");
   }
@@ -157,7 +173,18 @@ class SleepRecorderApp {
       this.ui.showFeedback("💾 Downloading file...");
       const a = document.createElement("a");
       a.href = this.player.url;
-      a.download = `sleep-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.webm`;
+
+      // Determine file extension from MIME type
+      let extension = "webm";
+      if (this.recordedMimeType) {
+        if (this.recordedMimeType.includes("mp4")) {
+          extension = "m4a";
+        } else if (this.recordedMimeType.includes("webm")) {
+          extension = "webm";
+        }
+      }
+
+      a.download = `sleep-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.${extension}`;
       a.click();
       this.ui.showFeedback("✅ Download started!");
     } else {
@@ -188,9 +215,45 @@ class SleepRecorderApp {
         download: true,
         upload: true,
       });
+      this.ui.resetProgress();
       this.updateStateDisplay();
       this.ui.showFeedback("✅ File ready for playback!");
     }
+  }
+
+  handleSeek(event) {
+    const percent = parseFloat(event.target.value);
+    const duration = this.player.getDuration();
+    const newTime = (percent / 100) * duration;
+    this.player.seek(newTime);
+
+    // Reset visualizations when seeking
+    if (this.player.isPlaying()) {
+      this.visualizer.clear();
+    }
+  }
+
+  updateProgress() {
+    const currentTime = this.player.getCurrentTime();
+    const duration = this.player.getDuration();
+    this.ui.updateProgress(currentTime, duration);
+  }
+
+  updateDuration() {
+    const duration = this.player.getDuration();
+    this.ui.updateDuration(duration);
+  }
+
+  startPlaybackVisualization() {
+    const analyser = this.player.getAnalyser();
+    if (analyser) {
+      this.visualizer.setAnalyser(analyser);
+      this.visualizer.start();
+    }
+  }
+
+  stopPlaybackVisualization() {
+    this.visualizer.stop();
   }
 
   handleToggleDisplay() {

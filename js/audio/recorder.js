@@ -17,6 +17,7 @@ export class AudioRecorder {
     this.onStop = null;
     this.onError = null;
     this.onTimer = null;
+    this.mimeType = null;
   }
 
   async start() {
@@ -40,7 +41,18 @@ export class AudioRecorder {
     source.connect(this.analyser);
 
     this.chunks = [];
-    this.mediaRecorder = new MediaRecorder(this.stream);
+
+    // Try to use audio/mp4 (AAC) if supported, otherwise fall back to webm
+    this.mimeType = "audio/webm";
+    if (MediaRecorder.isTypeSupported("audio/mp4")) {
+      this.mimeType = "audio/mp4";
+    } else if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+      this.mimeType = "audio/webm;codecs=opus";
+    }
+
+    this.mediaRecorder = new MediaRecorder(this.stream, {
+      mimeType: this.mimeType,
+    });
 
     this.mediaRecorder.ondataavailable = (e) => {
       this.chunks.push(e.data);
@@ -50,7 +62,7 @@ export class AudioRecorder {
     };
 
     this.mediaRecorder.onstop = () => {
-      const blob = new Blob(this.chunks, { type: "audio/webm" });
+      const blob = new Blob(this.chunks, { type: this.mimeType });
       const url = URL.createObjectURL(blob);
 
       if (this.timerInterval) {
@@ -59,7 +71,7 @@ export class AudioRecorder {
       }
 
       if (this.onStop) {
-        this.onStop(url, blob);
+        this.onStop(url, blob, this.mimeType);
       }
     };
 
