@@ -12,8 +12,16 @@
         <div id="feedback"></div>
 
         <div class="visualizer">
-            <canvas id="waveform" width="800" height="150"></canvas>
-            <canvas id="frequency" width="800" height="150"></canvas>
+            <button id="toggleDisplay">Switch to Waveform/FFT</button>
+            <div id="frequencyBandsView">
+                <canvas id="lowFreq" width="800" height="100"></canvas>
+                <canvas id="midFreq" width="800" height="100"></canvas>
+                <canvas id="highFreq" width="800" height="100"></canvas>
+            </div>
+            <div id="spectralView" style="display: none">
+                <canvas id="waveform" width="800" height="150"></canvas>
+                <canvas id="frequency" width="800" height="150"></canvas>
+            </div>
             <div id="volumeLevel">Volume: --</div>
         </div>
 

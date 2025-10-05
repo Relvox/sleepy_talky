@@ -149,8 +149,35 @@ button:disabled {
     gap: 10px;
 }
 
+#toggleDisplay {
+    font-size: 14px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    background: #3498db;
+    color: white;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+
+#toggleDisplay:hover {
+    background: #2980b9;
+}
+
+#frequencyBandsView,
+#spectralView {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    align-items: center;
+}
+
 #waveform,
-#frequency {
+#frequency,
+#lowFreq,
+#midFreq,
+#highFreq {
     border: 2px solid #34495e;
     border-radius: 4px;
     background: #1a1a1a;

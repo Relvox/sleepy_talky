@@ -18,9 +18,26 @@ const downloadBtn = document.getElementById("download");
 const audioPlayer = document.getElementById("audioPlayer");
 const waveformCanvas = document.getElementById("waveform");
 const frequencyCanvas = document.getElementById("frequency");
+const lowFreqCanvas = document.getElementById("lowFreq");
+const midFreqCanvas = document.getElementById("midFreq");
+const highFreqCanvas = document.getElementById("highFreq");
 const volumeLevel = document.getElementById("volumeLevel");
+const toggleDisplayBtn = document.getElementById("toggleDisplay");
+const frequencyBandsView = document.getElementById("frequencyBandsView");
+const spectralView = document.getElementById("spectralView");
 const waveformCtx = waveformCanvas.getContext("2d");
 const frequencyCtx = frequencyCanvas.getContext("2d");
+const lowFreqCtx = lowFreqCanvas.getContext("2d");
+const midFreqCtx = midFreqCanvas.getContext("2d");
+const highFreqCtx = highFreqCanvas.getContext("2d");
+
+let displayMode = "bands"; // "bands" or "spectral"
+let amplitudeHistory = {
+  low: [],
+  mid: [],
+  high: [],
+};
+const historyLength = 400;
 
 function showFeedback(message) {
   feedbackEl.textContent = message;
@@ -228,56 +245,152 @@ function startVisualization() {
     const db = 20 * Math.log10(rms);
     volumeLevel.textContent = `Volume: ${db > -100 ? db.toFixed(1) + " dB" : "-∞ dB"}`;
 
-    // Draw waveform
-    waveformCtx.fillStyle = "#1a1a1a";
-    waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
-    waveformCtx.lineWidth = 2;
-    waveformCtx.strokeStyle = "#00ff00";
-    waveformCtx.beginPath();
+    if (displayMode === "bands") {
+      drawFrequencyBands(dataArray, bufferLength);
+    } else {
+      // Draw waveform
+      waveformCtx.fillStyle = "#1a1a1a";
+      waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+      waveformCtx.lineWidth = 2;
+      waveformCtx.strokeStyle = "#00ff00";
+      waveformCtx.beginPath();
 
-    const sliceWidth = waveformCanvas.width / bufferLength;
-    let x = 0;
+      const sliceWidth = waveformCanvas.width / bufferLength;
+      let x = 0;
 
-    for (let i = 0; i < bufferLength; i++) {
-      const v = waveformData[i] / 128.0;
-      const y = (v * waveformCanvas.height) / 2;
+      for (let i = 0; i < bufferLength; i++) {
+        const v = waveformData[i] / 128.0;
+        const y = (v * waveformCanvas.height) / 2;
 
-      if (i === 0) {
-        waveformCtx.moveTo(x, y);
-      } else {
-        waveformCtx.lineTo(x, y);
+        if (i === 0) {
+          waveformCtx.moveTo(x, y);
+        } else {
+          waveformCtx.lineTo(x, y);
+        }
+
+        x += sliceWidth;
       }
 
-      x += sliceWidth;
-    }
+      waveformCtx.stroke();
 
-    waveformCtx.stroke();
-
-    // Draw frequency spectrum
-    frequencyCtx.fillStyle = "#1a1a1a";
-    frequencyCtx.fillRect(0, 0, frequencyCanvas.width, frequencyCanvas.height);
-
-    const barWidth = (frequencyCanvas.width / bufferLength) * 2.5;
-    let barHeight;
-    x = 0;
-
-    for (let i = 0; i < bufferLength; i++) {
-      barHeight = (dataArray[i] / 255) * frequencyCanvas.height;
-
-      const hue = (i / bufferLength) * 240;
-      frequencyCtx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+      // Draw frequency spectrum
+      frequencyCtx.fillStyle = "#1a1a1a";
       frequencyCtx.fillRect(
-        x,
-        frequencyCanvas.height - barHeight,
-        barWidth,
-        barHeight,
+        0,
+        0,
+        frequencyCanvas.width,
+        frequencyCanvas.height,
       );
 
-      x += barWidth + 1;
+      const barWidth = (frequencyCanvas.width / bufferLength) * 2.5;
+      let barHeight;
+      x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        barHeight = (dataArray[i] / 255) * frequencyCanvas.height;
+
+        const hue = (i / bufferLength) * 240;
+        frequencyCtx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+        frequencyCtx.fillRect(
+          x,
+          frequencyCanvas.height - barHeight,
+          barWidth,
+          barHeight,
+        );
+
+        x += barWidth + 1;
+      }
     }
   }
 
   draw();
+}
+
+function drawFrequencyBands(dataArray, bufferLength) {
+  // Frequency ranges (assuming sample rate ~48kHz, Nyquist ~24kHz)
+  // Low: 20-250Hz, Mid: 250-2000Hz, High: 2000-20000Hz
+  const binSize = 24000 / bufferLength;
+  const lowEnd = Math.floor(250 / binSize);
+  const midEnd = Math.floor(2000 / binSize);
+
+  // Calculate average amplitude for each band
+  let lowSum = 0,
+    midSum = 0,
+    highSum = 0;
+
+  for (let i = 1; i < lowEnd; i++) lowSum += dataArray[i];
+  for (let i = lowEnd; i < midEnd; i++) midSum += dataArray[i];
+  for (let i = midEnd; i < bufferLength; i++) highSum += dataArray[i];
+
+  const lowAvg = lowSum / lowEnd;
+  const midAvg = midSum / (midEnd - lowEnd);
+  const highAvg = highSum / (bufferLength - midEnd);
+
+  // Add to history
+  amplitudeHistory.low.push(lowAvg);
+  amplitudeHistory.mid.push(midAvg);
+  amplitudeHistory.high.push(highAvg);
+
+  if (amplitudeHistory.low.length > historyLength) {
+    amplitudeHistory.low.shift();
+    amplitudeHistory.mid.shift();
+    amplitudeHistory.high.shift();
+  }
+
+  // Draw low frequency band
+  drawTimeSeries(
+    lowFreqCtx,
+    lowFreqCanvas,
+    amplitudeHistory.low,
+    "#ff6b6b",
+    "Low (20-250 Hz)",
+  );
+  drawTimeSeries(
+    midFreqCtx,
+    midFreqCanvas,
+    amplitudeHistory.mid,
+    "#4ecdc4",
+    "Mid (250-2000 Hz)",
+  );
+  drawTimeSeries(
+    highFreqCtx,
+    highFreqCanvas,
+    amplitudeHistory.high,
+    "#95e1d3",
+    "High (2000+ Hz)",
+  );
+}
+
+function drawTimeSeries(ctx, canvas, data, color, label) {
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw label
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "12px monospace";
+  ctx.fillText(label, 10, 15);
+
+  if (data.length < 2) return;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+
+  const xStep = canvas.width / historyLength;
+  const maxVal = Math.max(...data, 1);
+
+  for (let i = 0; i < data.length; i++) {
+    const x = i * xStep;
+    const y = canvas.height - (data[i] / maxVal) * (canvas.height - 20);
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+
+  ctx.stroke();
 }
 
 function stopVisualization() {
@@ -286,13 +399,38 @@ function stopVisualization() {
     animationId = null;
   }
 
-  // Clear canvases
+  // Clear all canvases
   waveformCtx.fillStyle = "#1a1a1a";
   waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
   frequencyCtx.fillStyle = "#1a1a1a";
   frequencyCtx.fillRect(0, 0, frequencyCanvas.width, frequencyCanvas.height);
+  lowFreqCtx.fillStyle = "#1a1a1a";
+  lowFreqCtx.fillRect(0, 0, lowFreqCanvas.width, lowFreqCanvas.height);
+  midFreqCtx.fillStyle = "#1a1a1a";
+  midFreqCtx.fillRect(0, 0, midFreqCanvas.width, midFreqCanvas.height);
+  highFreqCtx.fillStyle = "#1a1a1a";
+  highFreqCtx.fillRect(0, 0, highFreqCanvas.width, highFreqCanvas.height);
   volumeLevel.textContent = "Volume: --";
+
+  // Clear history
+  amplitudeHistory.low = [];
+  amplitudeHistory.mid = [];
+  amplitudeHistory.high = [];
 }
+
+toggleDisplayBtn.onclick = () => {
+  if (displayMode === "bands") {
+    displayMode = "spectral";
+    frequencyBandsView.style.display = "none";
+    spectralView.style.display = "block";
+    toggleDisplayBtn.textContent = "Switch to Frequency Bands";
+  } else {
+    displayMode = "bands";
+    frequencyBandsView.style.display = "block";
+    spectralView.style.display = "none";
+    toggleDisplayBtn.textContent = "Switch to Waveform/FFT";
+  }
+};
 
 // Initialize state display
 updateStateInfo();
