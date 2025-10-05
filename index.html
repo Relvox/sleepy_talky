@@ -11,9 +11,15 @@
         <div id="timer"></div>
         <div id="feedback"></div>
 
+        <div class="visualizer">
+            <canvas id="waveform" width="800" height="150"></canvas>
+            <canvas id="frequency" width="800" height="150"></canvas>
+            <div id="volumeLevel">Volume: --</div>
+        </div>
+
         <div class="controls">
             <button id="record">🎙️</button>
-            <button id="stop" disabled>🛑</button>
+            <button id="stop" disabled>⏹️</button>
             <button id="play" disabled>▶️</button>
             <button id="download" disabled>💾</button>
         </div>
