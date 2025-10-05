@@ -97,16 +97,13 @@ export class UIManager {
     this.elements.spectralView.style.display = "none";
     this.elements.eventsView.style.display = "none";
 
-    // Show selected view and update button text
+    // Show selected view
     if (mode === "bands") {
       this.elements.frequencyBandsView.style.display = "flex";
-      this.elements.toggleDisplayBtn.textContent = "Switch to Waveform/FFT";
     } else if (mode === "spectral") {
       this.elements.spectralView.style.display = "flex";
-      this.elements.toggleDisplayBtn.textContent = "Switch to Events";
     } else if (mode === "events") {
       this.elements.eventsView.style.display = "flex";
-      this.elements.toggleDisplayBtn.textContent = "Switch to Frequency Bands";
     }
   }
 }

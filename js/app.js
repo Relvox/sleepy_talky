@@ -17,7 +17,6 @@ class SleepRecorderApp {
         lowFreq: this.elements.lowFreqCanvas,
         midFreq: this.elements.midFreqCanvas,
         highFreq: this.elements.highFreqCanvas,
-        events: this.elements.eventsCanvas,
         eventsContainer: this.elements.eventsContainer,
       },
       this.elements.volumeLevel,
@@ -27,6 +26,7 @@ class SleepRecorderApp {
     this.offlineAnalyzer = new OfflineAudioAnalyzer();
     this.recordingBlob = null;
     this.uploadedAudioBlob = null;
+    this.currentPlayingEventIndex = null;
 
     this.setupEventHandlers();
     this.updateStateDisplay();
@@ -55,11 +55,12 @@ class SleepRecorderApp {
       highFreqCanvas: document.getElementById("highFreq"),
       volumeLevel: document.getElementById("volumeLevel"),
       baselineLevel: document.getElementById("baselineLevel"),
-      toggleDisplayBtn: document.getElementById("toggleDisplay"),
+      bandsBtn: document.getElementById("bandsBtn"),
+      spectralBtn: document.getElementById("spectralBtn"),
+      eventsBtn: document.getElementById("eventsBtn"),
       frequencyBandsView: document.getElementById("frequencyBandsView"),
       spectralView: document.getElementById("spectralView"),
       eventsView: document.getElementById("eventsView"),
-      eventsCanvas: document.getElementById("eventsCanvas"),
       eventsContainer: document.getElementById("eventsContainer"),
       recorderState: document.getElementById("recorderState"),
       audioState: document.getElementById("audioState"),
@@ -76,7 +77,9 @@ class SleepRecorderApp {
     this.elements.uploadBtn.onclick = () => this.handleUpload();
     this.elements.scanBtn.onclick = () => this.handleScan();
     this.elements.fileInput.onchange = (e) => this.handleFileSelected(e);
-    this.elements.toggleDisplayBtn.onclick = () => this.handleToggleDisplay();
+    this.elements.bandsBtn.onclick = () => this.setDisplayMode("bands");
+    this.elements.spectralBtn.onclick = () => this.setDisplayMode("spectral");
+    this.elements.eventsBtn.onclick = () => this.setDisplayMode("events");
     this.elements.progressSlider.oninput = (e) => this.handleSeek(e);
 
     // Recorder callbacks
@@ -94,13 +97,20 @@ class SleepRecorderApp {
     this.player.onPause = () => {
       this.ui.updateStatus("⏸️ Paused", "idle");
       this.stopPlaybackVisualization();
+      // Don't clear playing index on pause - only update visual state
+      this.visualizer.updatePlayingEvent(null);
     };
     this.player.onEnded = () => {
       this.ui.showFeedback("✅ Playback finished");
       this.ui.setPlayButtonText(false);
       this.stopPlaybackVisualization();
+      this.currentPlayingEventIndex = null;
+      this.visualizer.updatePlayingEvent(null);
     };
-    this.player.onTimeUpdate = () => this.updateProgress();
+    this.player.onTimeUpdate = () => {
+      this.updateProgress();
+      this.checkEventEndTime();
+    };
     this.player.onLoadedMetadata = () => this.updateDuration();
 
     // Noise detector callbacks
@@ -310,17 +320,35 @@ class SleepRecorderApp {
         // Load manifest into noise detector
         this.noiseDetector.loadManifest(manifest);
 
+        // Wait for audio metadata to load
+        await new Promise((resolve) => {
+          if (this.player.getDuration() > 0) {
+            resolve();
+          } else {
+            this.elements.audioPlayer.addEventListener(
+              "loadedmetadata",
+              resolve,
+              { once: true },
+            );
+          }
+        });
+
         // Update UI with loaded events
         const events = this.noiseDetector.getEvents();
         const duration = this.player.getDuration() * 1000;
 
-        if (events.length > 0) {
+        if (events.length > 0 && duration > 0) {
           this.visualizer.updateEvents(events, duration);
           this.visualizer.renderEventsList(events, (event, index) =>
             this.playEvent(event, index),
           );
-          this.elements.baselineLevel.style.display = "block";
-          this.elements.baselineLevel.textContent = `Baseline: ${manifest.baselineValue.toFixed(1)} dB`;
+          if (
+            this.elements.baselineLevel &&
+            manifest.baselineValue !== undefined
+          ) {
+            this.elements.baselineLevel.style.display = "block";
+            this.elements.baselineLevel.textContent = `Baseline: ${manifest.baselineValue.toFixed(1)} dB`;
+          }
           this.ui.showFeedback(
             `📋 Loaded manifest with ${events.length} event(s)`,
           );
@@ -369,8 +397,11 @@ class SleepRecorderApp {
       const events = this.noiseDetector.getEvents();
       const baseline = this.noiseDetector.getBaseline();
 
-      this.elements.baselineLevel.style.display = "block";
-      this.elements.baselineLevel.textContent = `Baseline: ${baseline.toFixed(1)} dB`;
+      // Update baseline display
+      if (baseline !== null && this.elements.baselineLevel) {
+        this.elements.baselineLevel.style.display = "block";
+        this.elements.baselineLevel.textContent = `Baseline: ${baseline.toFixed(1)} dB`;
+      }
 
       if (events.length > 0) {
         this.visualizer.updateEvents(events, duration);
@@ -380,8 +411,7 @@ class SleepRecorderApp {
         this.ui.showFeedback(`✅ Found ${events.length} noise event(s)!`);
 
         // Switch to events view
-        this.visualizer.setDisplayMode("events");
-        this.ui.toggleVisualizerDisplay("events");
+        this.setDisplayMode("events");
       } else {
         this.ui.showFeedback("✅ No noise events detected");
       }
@@ -389,6 +419,8 @@ class SleepRecorderApp {
       this.ui.updateStatus("✅ Scan complete!", "stopped");
       this.elements.scanBtn.disabled = false;
     } catch (error) {
+      console.error("[Scan Error]", error);
+      console.error("Error stack:", error.stack);
       this.ui.showFeedback(`❌ Scan error: ${error.message}`);
       this.ui.updateStatus("❌ Scan failed", "error");
       this.elements.scanBtn.disabled = false;
@@ -418,6 +450,20 @@ class SleepRecorderApp {
     this.ui.updateDuration(duration);
   }
 
+  checkEventEndTime() {
+    // If playing an event and reached its end time, stop playback
+    if (this.currentPlayingEventIndex !== null && this.currentEventEndTime) {
+      const currentTime = this.player.getCurrentTime();
+      if (currentTime >= this.currentEventEndTime) {
+        this.player.play(); // Pause
+        this.currentPlayingEventIndex = null;
+        this.currentEventEndTime = null;
+        this.visualizer.updatePlayingEvent(null);
+        this.ui.showFeedback("✅ Event playback finished");
+      }
+    }
+  }
+
   startPlaybackVisualization() {
     const analyser = this.player.getAnalyser();
     if (analyser) {
@@ -430,26 +476,37 @@ class SleepRecorderApp {
     this.visualizer.stop();
   }
 
-  handleToggleDisplay() {
-    const currentMode = this.visualizer.getDisplayMode();
-    let newMode = "bands";
+  setDisplayMode(mode) {
+    this.visualizer.setDisplayMode(mode);
+    this.ui.toggleVisualizerDisplay(mode);
 
-    if (currentMode === "bands") {
-      newMode = "spectral";
-    } else if (currentMode === "spectral") {
-      newMode = "events";
-    } else {
-      newMode = "bands";
-    }
-
-    this.visualizer.setDisplayMode(newMode);
-    this.ui.toggleVisualizerDisplay(newMode);
+    // Update button active states
+    this.elements.bandsBtn.classList.toggle("active", mode === "bands");
+    this.elements.spectralBtn.classList.toggle("active", mode === "spectral");
+    this.elements.eventsBtn.classList.toggle("active", mode === "events");
   }
 
   playEvent(event, index) {
     const startTime = event.startTime / 1000; // Convert to seconds
+    const endTime = event.endTime / 1000; // Convert to seconds
+
+    // If clicking the same event that's playing, pause it
+    if (this.currentPlayingEventIndex === index && this.player.isPlaying()) {
+      this.player.play(); // Toggle pause
+      this.visualizer.updatePlayingEvent(null);
+      this.ui.showFeedback(`⏸️ Paused event ${index + 1}`);
+      return;
+    }
+
+    // Play the selected event
     this.player.seek(startTime);
-    this.player.play();
+    if (!this.player.isPlaying()) {
+      this.player.play();
+    }
+
+    this.currentPlayingEventIndex = index;
+    this.currentEventEndTime = endTime;
+    this.visualizer.updatePlayingEvent(index);
     this.ui.showFeedback(`▶️ Playing event ${index + 1}`);
   }
 

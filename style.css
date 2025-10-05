@@ -149,19 +149,30 @@ button:disabled {
     gap: 10px;
 }
 
-#toggleDisplay {
+.display-mode-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.display-btn {
     font-size: 14px;
     padding: 8px 16px;
     border-radius: 6px;
-    background: #3498db;
+    background: #34495e;
     color: white;
     cursor: pointer;
     border: none;
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
-#toggleDisplay:hover {
-    background: #2980b9;
+.display-btn:hover {
+    background: #3498db;
+}
+
+.display-btn.active {
+    background: #3498db;
+    font-weight: bold;
 }
 
 #frequencyBandsView,

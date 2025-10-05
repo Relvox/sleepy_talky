@@ -18,10 +18,7 @@ export class VisualizationManager {
       canvases.waveform,
       canvases.frequency,
     );
-    this.eventsList = new EventsListVisualizer(
-      canvases.events,
-      canvases.eventsContainer,
-    );
+    this.eventsList = new EventsListVisualizer(canvases.eventsContainer);
 
     this.volumeElement = volumeElement;
     this.analyser = null;
@@ -102,9 +99,20 @@ export class VisualizationManager {
 
   updateEvents(events, duration) {
     this.eventsList.update(events, duration);
+    this.lastEvents = events; // Store events for re-rendering
   }
 
   renderEventsList(events, onPlayEvent) {
+    this.lastOnPlayEvent = onPlayEvent; // Store for later re-renders
+    this.lastEvents = events; // Store events
     this.eventsList.renderEventsList(events, onPlayEvent);
+  }
+
+  updatePlayingEvent(index) {
+    this.eventsList.updatePlayingEvent(index);
+    // Re-render the list to update UI - use stored events
+    if (this.lastEvents && this.lastEvents.length > 0 && this.lastOnPlayEvent) {
+      this.eventsList.renderEventsList(this.lastEvents, this.lastOnPlayEvent);
+    }
   }
 }

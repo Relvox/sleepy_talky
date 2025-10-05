@@ -1,6 +1,6 @@
 // Configurable parameters
 const BASELINE_INTERVAL_MS = 60 * 1000; // 5 minutes
-const BASELINE_PERCENTILE = 0.3; // Use 30th percentile as baseline
+const BASELINE_PERCENTILE = 0.5; // Use 30th percentile as baseline
 const NOISE_THRESHOLD_MULTIPLIER = 2.0; // Noise is 2x baseline
 const EVENT_PRE_BUFFER_MS = 2000; // 2 seconds before
 const EVENT_POST_BUFFER_MS = 2000; // 2 seconds after
