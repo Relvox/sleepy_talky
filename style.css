@@ -74,12 +74,17 @@ body {
 }
 
 .controls {
-    margin: 10px 0;
+    margin: 0;
+    padding: 15px;
     display: flex;
     gap: 12px;
     align-items: center;
     flex-wrap: wrap;
     justify-content: center;
+    background: transparent;
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 button {
@@ -123,6 +128,14 @@ button:disabled {
     font-size: 18px;
     padding: 15px 30px;
     border-radius: 6px;
+}
+
+#upload {
+    background: #3498db;
+}
+
+#scan {
+    background: #9b59b6;
 }
 
 #stateInfo {

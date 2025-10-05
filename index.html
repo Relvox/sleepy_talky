@@ -7,6 +7,17 @@
         <link rel="stylesheet" href="style.css" />
     </head>
     <body>
+        <div class="controls">
+            <button id="record" title="Record audio">🎙️</button>
+            <button id="stop" disabled title="Stop recording">⏹️</button>
+            <button id="play" disabled title="Play/Pause">▶️</button>
+            <button id="upload" title="Upload audio file">📁</button>
+            <button id="scan" disabled title="Scan for noise events">🔍</button>
+            <button id="download" disabled title="Download audio + manifest">
+                💾
+            </button>
+        </div>
+
         <div id="status" class="idle">⚪ Idle</div>
         <div id="timer"></div>
         <div id="feedback"></div>
@@ -35,15 +46,6 @@
             </div>
             <div id="volumeLevel">Volume: --</div>
             <div id="baselineLevel" style="display: none">Baseline: --</div>
-        </div>
-
-        <div class="controls">
-            <button id="record">🎙️</button>
-            <button id="stop" disabled>⏹️</button>
-            <button id="play" disabled>▶️</button>
-            <button id="download" disabled>💾</button>
-            <button id="upload">📁</button>
-            <button id="scan" disabled>🔍</button>
         </div>
 
         <div class="progress-container">

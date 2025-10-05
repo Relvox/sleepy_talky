@@ -4,7 +4,7 @@ const BASELINE_PERCENTILE = 0.4; // Use 40th percentile as baseline
 const NOISE_THRESHOLD_MULTIPLIER = 3.0; // Noise is 3x baseline
 const EVENT_PRE_BUFFER_MS = 2000; // 2 seconds before
 const EVENT_POST_BUFFER_MS = 2000; // 2 seconds after
-const SAMPLE_INTERVAL_MS = 100; // Sample volume every 100ms
+const SAMPLE_INTERVAL_MS = 50; // Sample volume every 50ms (faster for live recording)
 const MIN_EVENT_GAP_MS = 1000; // Merge events within 1 second
 
 export class NoiseDetector {
@@ -49,6 +49,10 @@ export class NoiseDetector {
     if (this.currentEvent) {
       this.finalizeEvent();
     }
+
+    console.log(
+      `[NoiseDetector] Stopped. Total samples: ${this.volumeSamples.length}, Events: ${this.events.length}`,
+    );
   }
 
   sampleVolume() {
@@ -73,6 +77,17 @@ export class NoiseDetector {
 
     // Store sample
     this.volumeSamples.push({ time: elapsed, volume });
+
+    // Log actual sample interval for debugging
+    if (this.lastSampleTime) {
+      const actualInterval = now - this.lastSampleTime;
+      if (actualInterval > SAMPLE_INTERVAL_MS * 1.5) {
+        console.warn(
+          `[NoiseDetector] Sample interval drift: ${actualInterval}ms (expected ${SAMPLE_INTERVAL_MS}ms)`,
+        );
+      }
+    }
+    this.lastSampleTime = now;
 
     // Update baseline periodically
     if (
@@ -103,8 +118,12 @@ export class NoiseDetector {
     );
     this.baselineValue = recentSamples[percentileIndex];
 
+    const avgVolume =
+      recentSamples.reduce((a, b) => a + b, 0) / recentSamples.length;
+    const minVolume = Math.min(...recentSamples);
+    const maxVolume = Math.max(...recentSamples);
     console.log(
-      `[NoiseDetector] Baseline updated: ${this.baselineValue.toFixed(1)} dB (from ${recentSamples.length} samples, ${BASELINE_PERCENTILE * 100}th percentile)`,
+      `[NoiseDetector] Baseline updated: ${this.baselineValue.toFixed(1)} dB | Range: ${minVolume.toFixed(1)} to ${maxVolume.toFixed(1)} dB | Avg: ${avgVolume.toFixed(1)} dB | Samples: ${recentSamples.length}`,
     );
 
     if (this.onBaselineUpdated) {

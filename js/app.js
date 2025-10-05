@@ -4,9 +4,14 @@ import { VisualizationManager } from "./visualizers/visualizationManager.js";
 import { UIManager } from "./ui/uiManager.js";
 import { NoiseDetector } from "./detection/noiseDetector.js";
 import { OfflineAudioAnalyzer } from "./detection/offlineAnalyzer.js";
+import { RecordingCache } from "./storage/recordingCache.js";
 
 class SleepRecorderApp {
   constructor() {
+    // Check for debug mode in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    this.debugMode = urlParams.has("debug");
+
     this.initializeUI();
     this.recorder = new AudioRecorder();
     this.player = new AudioPlayer(this.elements.audioPlayer);
@@ -24,12 +29,15 @@ class SleepRecorderApp {
     this.ui = new UIManager(this.elements);
     this.noiseDetector = new NoiseDetector();
     this.offlineAnalyzer = new OfflineAudioAnalyzer();
+    this.recordingCache = new RecordingCache();
     this.recordingBlob = null;
     this.uploadedAudioBlob = null;
     this.currentPlayingEventIndex = null;
 
     this.setupEventHandlers();
+    this.applyDebugMode();
     this.updateStateDisplay();
+    this.restoreCachedRecording();
   }
 
   initializeUI() {
@@ -66,6 +74,8 @@ class SleepRecorderApp {
       audioState: document.getElementById("audioState"),
       dataState: document.getElementById("dataState"),
       blobState: document.getElementById("blobState"),
+      stateInfo: document.getElementById("stateInfo"),
+      progressContainer: document.querySelector(".progress-container"),
     };
   }
 
@@ -133,10 +143,6 @@ class SleepRecorderApp {
       this.visualizer.setAnalyser(analyser);
       this.visualizer.start();
 
-      // Start noise detection
-      this.noiseDetector.start(analyser, Date.now());
-      this.elements.baselineLevel.style.display = "block";
-
       this.ui.updateStatus("🔴 Recording...", "recording");
       this.ui.showFeedback("🔴 Recording started!");
       this.ui.setButtonStates({
@@ -147,6 +153,9 @@ class SleepRecorderApp {
         upload: false,
         scan: false,
       });
+
+      // Update display mode buttons for recording state
+      this.updateDisplayModeButtons();
     } catch (error) {
       this.ui.showFeedback(`❌ Error: ${error.message}`);
       this.ui.updateStatus("❌ Error: " + error.message, "error");
@@ -160,27 +169,48 @@ class SleepRecorderApp {
       this.ui.updateStatus("⏹️ Stopping...", "idle");
       this.recorder.stop();
       this.visualizer.stop();
-      this.noiseDetector.stop();
       this.updateStateDisplay();
+
+      // Update display mode buttons for non-recording state
+      this.updateDisplayModeButtons();
     }
   }
 
-  handleRecordingStop(url, blob, mimeType) {
+  async handleRecordingStop(url, blob, mimeType) {
     this.ui.showFeedback("💾 Processing recording...");
     this.player.load(url);
     this.recordedMimeType = mimeType;
     this.recordingBlob = blob;
 
-    // Get noise events and update visualization
-    const events = this.noiseDetector.getEvents();
-    const duration = this.player.getDuration() * 1000; // Convert to ms
+    // Run offline analysis to detect noise events
+    this.ui.showFeedback("🔍 Analyzing recording...");
+    try {
+      const { volumeSamples, duration } =
+        await this.offlineAnalyzer.analyzeFile(blob, (progress) => {
+          this.ui.showFeedback(`🔍 Analyzing... ${Math.round(progress)}%`);
+        });
 
-    if (events.length > 0) {
-      this.ui.showFeedback(`📊 Detected ${events.length} noise event(s)`);
-      this.visualizer.updateEvents(events, duration);
-      this.visualizer.renderEventsList(events, (event, index) =>
-        this.playEvent(event, index),
+      const events = await this.offlineAnalyzer.analyzeSamples(
+        volumeSamples,
+        duration,
+        this.noiseDetector,
       );
+
+      if (events.length > 0) {
+        this.ui.showFeedback(`📊 Found ${events.length} noise event(s)`);
+        this.visualizer.updateEvents(events, duration);
+        this.visualizer.renderEventsList(events, (event, index) =>
+          this.playEvent(event, index),
+        );
+      } else {
+        this.ui.showFeedback("✅ No noise events detected");
+      }
+
+      // Save to IndexedDB
+      await this.saveRecordingToCache(blob, mimeType, events);
+    } catch (error) {
+      console.error("Analysis error:", error);
+      this.ui.showFeedback("⚠️ Analysis failed, recording saved anyway");
     }
 
     this.ui.updateStatus("✅ Recording saved!", "stopped");
@@ -195,7 +225,7 @@ class SleepRecorderApp {
     this.ui.clearTimer();
     this.ui.resetProgress();
     this.updateStateDisplay();
-    this.ui.showFeedback("✅ Recording ready for playback!");
+    this.updateDisplayModeButtons();
   }
 
   handleRecordingError(error) {
@@ -300,6 +330,11 @@ class SleepRecorderApp {
       this.ui.resetProgress();
       this.updateStateDisplay();
       this.ui.showFeedback("✅ File ready for playback!");
+
+      // Auto-scan if not in debug mode
+      if (!this.debugMode && this.uploadedAudioBlob) {
+        setTimeout(() => this.handleScan(), 500);
+      }
     }
   }
 
@@ -410,7 +445,8 @@ class SleepRecorderApp {
         );
         this.ui.showFeedback(`✅ Found ${events.length} noise event(s)!`);
 
-        // Switch to events view
+        // Update display mode buttons and switch to events
+        this.updateDisplayModeButtons();
         this.setDisplayMode("events");
       } else {
         this.ui.showFeedback("✅ No noise events detected");
@@ -510,7 +546,61 @@ class SleepRecorderApp {
     this.ui.showFeedback(`▶️ Playing event ${index + 1}`);
   }
 
+  applyDebugMode() {
+    if (!this.debugMode) {
+      // Hide debug elements
+      if (this.elements.playBtn) this.elements.playBtn.style.display = "none";
+      if (this.elements.stateInfo)
+        this.elements.stateInfo.style.display = "none";
+      if (this.elements.progressContainer)
+        this.elements.progressContainer.style.display = "none";
+      if (this.elements.scanBtn) this.elements.scanBtn.style.display = "none"; // Auto-scan replaces manual button
+    }
+
+    // Set initial display mode visibility
+    this.updateDisplayModeButtons();
+
+    // Log debug mode status
+    console.log(`[Debug Mode] ${this.debugMode ? "Enabled" : "Disabled"}`);
+  }
+
+  updateDisplayModeButtons() {
+    const isRecording = this.recorder.isRecording();
+
+    // Freq/Wave buttons only visible while recording
+    if (this.elements.bandsBtn) {
+      this.elements.bandsBtn.style.display = isRecording
+        ? "inline-block"
+        : "none";
+    }
+    if (this.elements.spectralBtn) {
+      this.elements.spectralBtn.style.display = isRecording
+        ? "inline-block"
+        : "none";
+    }
+
+    // Events button not available while recording
+    if (this.elements.eventsBtn) {
+      this.elements.eventsBtn.style.display = isRecording
+        ? "none"
+        : "inline-block";
+    }
+
+    // Auto-switch to appropriate view
+    if (isRecording) {
+      this.setDisplayMode("bands");
+    } else {
+      // Show events if available
+      const events = this.noiseDetector.getEvents();
+      if (events && events.length > 0) {
+        this.setDisplayMode("events");
+      }
+    }
+  }
+
   updateStateDisplay() {
+    if (!this.debugMode) return; // Skip in non-debug mode
+
     const recorderState = this.recorder.getState();
     this.ui.updateStateInfo(
       recorderState.recorderState,
@@ -519,6 +609,61 @@ class SleepRecorderApp {
       recorderState.totalBytes,
       this.player.hasAudio(),
     );
+  }
+
+  async saveRecordingToCache(blob, mimeType, events) {
+    try {
+      await this.recordingCache.saveRecording(blob, mimeType, events);
+      console.log("[Cache] Recording saved to IndexedDB");
+    } catch (error) {
+      console.error("[Cache] Failed to save recording:", error);
+    }
+  }
+
+  async restoreCachedRecording() {
+    try {
+      const cached = await this.recordingCache.getLatestRecording();
+      if (cached) {
+        console.log(
+          "[Cache] Restoring cached recording from",
+          new Date(cached.timestamp),
+        );
+
+        // Create object URL and load into player
+        const url = URL.createObjectURL(cached.blob);
+        this.player.load(url);
+        this.recordingBlob = cached.blob;
+        this.recordedMimeType = cached.mimeType;
+
+        // Restore events if available
+        if (cached.events && cached.events.length > 0) {
+          const duration = this.player.getDuration() * 1000;
+          this.visualizer.updateEvents(cached.events, duration);
+          this.visualizer.renderEventsList(cached.events, (event, index) =>
+            this.playEvent(event, index),
+          );
+          this.ui.showFeedback(
+            `📦 Restored recording with ${cached.events.length} event(s)`,
+          );
+        } else {
+          this.ui.showFeedback("📦 Restored cached recording");
+        }
+
+        // Enable relevant buttons
+        this.ui.setButtonStates({
+          record: true,
+          stop: false,
+          play: true,
+          download: true,
+          upload: true,
+          scan: true,
+        });
+
+        this.updateStateDisplay();
+      }
+    } catch (error) {
+      console.error("[Cache] Failed to restore recording:", error);
+    }
   }
 }
 

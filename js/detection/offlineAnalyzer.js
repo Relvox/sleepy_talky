@@ -1,5 +1,5 @@
 // Offline audio analysis for uploaded files
-const SAMPLE_INTERVAL_MS = 100;
+const SAMPLE_INTERVAL_MS = 50; // Match live recording sample rate
 const SAMPLE_RATE = 48000; // Common sample rate
 
 export class OfflineAudioAnalyzer {
@@ -53,26 +53,52 @@ export class OfflineAudioAnalyzer {
       onProgress(100);
     }
 
+    console.log(
+      `[OfflineAnalyzer] Processed ${volumeSamples.length} samples over ${(duration / 1000).toFixed(1)}s`,
+    );
+
     return { volumeSamples, duration };
   }
 
   async analyzeSamples(volumeSamples, duration, noiseDetector) {
-    // Feed samples to noise detector
-    noiseDetector.volumeSamples = volumeSamples;
+    // Initialize detector state
+    noiseDetector.volumeSamples = [];
     noiseDetector.recordingStartTime = 0;
+    noiseDetector.baselineValue = null;
+    noiseDetector.lastBaselineUpdate = null;
+    noiseDetector.events = [];
+    noiseDetector.currentEvent = null;
 
-    // Calculate baseline
-    noiseDetector.updateBaseline();
+    // Process samples one by one, simulating live behavior
+    const BASELINE_INTERVAL_MS = 5 * 60 * 1000;
 
-    // Detect events
     volumeSamples.forEach((sample) => {
-      noiseDetector.detectEvent(sample.time, sample.volume);
+      // Add sample to detector's array
+      noiseDetector.volumeSamples.push(sample);
+
+      // Update baseline periodically (same logic as live)
+      if (
+        !noiseDetector.lastBaselineUpdate ||
+        sample.time - noiseDetector.lastBaselineUpdate >= BASELINE_INTERVAL_MS
+      ) {
+        noiseDetector.updateBaseline();
+        noiseDetector.lastBaselineUpdate = sample.time;
+      }
+
+      // Detect events (only if baseline exists)
+      if (noiseDetector.baselineValue !== null) {
+        noiseDetector.detectEvent(sample.time, sample.volume);
+      }
     });
 
     // Finalize any pending event
     if (noiseDetector.currentEvent) {
       noiseDetector.finalizeEvent();
     }
+
+    console.log(
+      `[OfflineAnalyzer] Completed. Total samples: ${noiseDetector.volumeSamples.length}, Events: ${noiseDetector.events.length}`,
+    );
 
     return noiseDetector.getEvents();
   }
