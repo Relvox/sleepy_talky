@@ -103,9 +103,5 @@ if __name__ == "__main__":
     hostname = socket.gethostname()
     local_ip = socket.gethostbyname(hostname)
 
-    print(f"[INFO]: Detected local IP: {local_ip}")
-    print(f"[INFO]: Access from this PC: https://localhost:8000")
-    print(f"[INFO]: Access from phone: https://{local_ip}:8000")
-
     # Bind to all interfaces so it's accessible from network
     start_https_server("0.0.0.0", 443)

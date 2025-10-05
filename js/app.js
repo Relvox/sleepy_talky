@@ -122,11 +122,6 @@ class SleepRecorderApp {
       this.checkEventEndTime();
     };
     this.player.onLoadedMetadata = () => this.updateDuration();
-
-    // Noise detector callbacks
-    this.noiseDetector.onBaselineUpdated = (baseline) => {
-      this.elements.baselineLevel.textContent = `Baseline: ${baseline.toFixed(1)} dB`;
-    };
   }
 
   async handleRecord() {
@@ -249,53 +244,20 @@ class SleepRecorderApp {
   }
 
   handleDownload() {
-    if (this.player.hasAudio()) {
-      this.ui.showFeedback("💾 Downloading files...");
-      const timestamp = new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace(/:/g, "-");
-
-      // Download audio file
-      const audioLink = document.createElement("a");
-      audioLink.href = this.player.url;
-
-      // Determine file extension from MIME type
-      let extension = "webm";
-      if (this.recordedMimeType) {
-        if (this.recordedMimeType.includes("mp4")) {
-          extension = "m4a";
-        } else if (this.recordedMimeType.includes("webm")) {
-          extension = "webm";
-        }
-      }
-
-      audioLink.download = `sleep-${timestamp}.${extension}`;
-      audioLink.click();
-
-      // Download manifest if events exist
-      const events = this.noiseDetector.getEvents();
-      if (events && events.length > 0) {
-        const manifest = this.noiseDetector.getManifest();
-        const manifestJson = JSON.stringify(manifest, null, 2);
-        const manifestBlob = new Blob([manifestJson], {
-          type: "application/json",
-        });
-        const manifestUrl = URL.createObjectURL(manifestBlob);
-
-        const manifestLink = document.createElement("a");
-        manifestLink.href = manifestUrl;
-        manifestLink.download = `sleep-${timestamp}-manifest.json`;
-        manifestLink.click();
-
-        URL.revokeObjectURL(manifestUrl);
-        this.ui.showFeedback("✅ Audio + manifest downloaded!");
-      } else {
-        this.ui.showFeedback("✅ Download started!");
-      }
-    } else {
+    if (!this.player.hasAudio()) {
       this.ui.showFeedback("❌ No recording available");
+      return;
     }
+
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+    const extension = this.recordedMimeType?.includes("mp4") ? "m4a" : "webm";
+
+    const link = document.createElement("a");
+    link.href = this.player.url;
+    link.download = `sleep-${timestamp}.${extension}`;
+    link.click();
+
+    this.ui.showFeedback("✅ Download started!");
   }
 
   handleUpload() {
@@ -304,94 +266,34 @@ class SleepRecorderApp {
 
   async handleFileSelected(event) {
     const file = event.target.files[0];
-    if (file) {
-      if (!file.type.startsWith("audio/")) {
-        this.ui.showFeedback("❌ Please select an audio file");
-        return;
-      }
+    if (!file) return;
 
-      this.ui.showFeedback("📁 Loading file...");
-      const url = URL.createObjectURL(file);
-      this.player.load(url);
-      this.uploadedAudioBlob = file; // Store for analysis
-
-      // Try to load manifest file with same name
-      await this.tryLoadManifest(file);
-
-      this.ui.updateStatus("✅ File loaded!", "stopped");
-      this.ui.setButtonStates({
-        record: true,
-        stop: false,
-        play: true,
-        download: true,
-        upload: true,
-        scan: true,
-      });
-      this.ui.resetProgress();
-      this.updateStateDisplay();
-      this.ui.showFeedback("✅ File ready for playback!");
-
-      // Auto-scan if not in debug mode
-      if (!this.debugMode && this.uploadedAudioBlob) {
-        setTimeout(() => this.handleScan(), 500);
-      }
+    if (!file.type.startsWith("audio/")) {
+      this.ui.showFeedback("❌ Please select an audio file");
+      return;
     }
-  }
 
-  async tryLoadManifest(audioFile) {
-    try {
-      // Look for manifest file with same name
-      const baseName = audioFile.name.replace(/\.[^/.]+$/, ""); // Remove extension
-      const manifestName = `${baseName}-manifest.json`;
+    this.ui.showFeedback("📁 Loading file...");
+    this.player.load(URL.createObjectURL(file));
+    this.uploadedAudioBlob = file;
 
-      // Create a file input to check if manifest exists in same selection
-      const files = Array.from(this.elements.fileInput.files);
-      const manifestFile = files.find((f) => f.name === manifestName);
+    this.ui.updateStatus("✅ File loaded!", "stopped");
+    this.ui.setButtonStates({
+      record: true,
+      stop: false,
+      play: true,
+      download: true,
+      upload: true,
+      scan: true,
+    });
+    this.ui.resetProgress();
+    this.updateStateDisplay();
 
-      if (manifestFile) {
-        const manifestText = await manifestFile.text();
-        const manifest = JSON.parse(manifestText);
-
-        // Load manifest into noise detector
-        this.noiseDetector.loadManifest(manifest);
-
-        // Wait for audio metadata to load
-        await new Promise((resolve) => {
-          if (this.player.getDuration() > 0) {
-            resolve();
-          } else {
-            this.elements.audioPlayer.addEventListener(
-              "loadedmetadata",
-              resolve,
-              { once: true },
-            );
-          }
-        });
-
-        // Update UI with loaded events
-        const events = this.noiseDetector.getEvents();
-        const duration = this.player.getDuration() * 1000;
-
-        if (events.length > 0 && duration > 0) {
-          this.visualizer.updateEvents(events, duration);
-          this.visualizer.renderEventsList(events, (event, index) =>
-            this.playEvent(event, index),
-          );
-          if (
-            this.elements.baselineLevel &&
-            manifest.baselineValue !== undefined
-          ) {
-            this.elements.baselineLevel.style.display = "block";
-            this.elements.baselineLevel.textContent = `Baseline: ${manifest.baselineValue.toFixed(1)} dB`;
-          }
-          this.ui.showFeedback(
-            `📋 Loaded manifest with ${events.length} event(s)`,
-          );
-        }
-      }
-    } catch (error) {
-      // Silently fail if no manifest found
-      console.log("No manifest file found:", error);
+    // Auto-scan if not in debug mode
+    if (!this.debugMode) {
+      setTimeout(() => this.handleScan(), 500);
+    } else {
+      this.ui.showFeedback("✅ File ready for playback!");
     }
   }
 
