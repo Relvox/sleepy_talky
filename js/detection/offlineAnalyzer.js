@@ -1,6 +1,5 @@
 // Offline audio analysis for uploaded files
 const SAMPLE_INTERVAL_MS = 50; // Match live recording sample rate
-const SAMPLE_RATE = 48000; // Common sample rate
 
 export class OfflineAudioAnalyzer {
   constructor() {

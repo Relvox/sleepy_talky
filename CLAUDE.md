@@ -23,6 +23,8 @@ sleepy/
     ├── detection/
     │   ├── noiseDetector.js      # Real-time noise detection
     │   └── offlineAnalyzer.js    # Offline file analysis
+    ├── storage/
+    │   └── recordingCache.js     # IndexedDB persistence
     ├── ui/
     │   └── uiManager.js   # UI state management
     └── visualizers/
@@ -40,10 +42,11 @@ sleepy/
 - **Upload**: Load existing audio files
 - **Download**: Save recordings + manifest JSON with timestamp
 - **Noise Detection**:
-  - Real-time baseline calculation (5min intervals, 30th percentile)
-  - Auto-detect events above 2x baseline
+  - Real-time baseline calculation (2min intervals, 50th percentile)
+  - Auto-detect events above 2.5x baseline
   - Event merging (1s gap), pre/post buffers (2s each)
   - Offline scanning for uploaded files
+  - IndexedDB caching for session persistence
 - **Visualizations** (3 modes):
   - Frequency bands (Low: 20-250Hz, Mid: 250-2kHz, High: 2kHz+)
   - Waveform + FFT spectrum
@@ -53,13 +56,15 @@ sleepy/
 ## Setup
 
 ```bash
-# Start HTTPS server (requires admin for port 443)
+# Start HTTPS server (requires admin/sudo for port 443)
 python https_server.py
 
 # Access:
-# - Local: https://localhost:8000
-# - Network: https://<local-ip>:8000
+# - Local: https://localhost:443
+# - Network: https://<local-ip>:443
 ```
+
+**Note**: Server auto-installs `cryptography` package if not present.
 
 ## Key Implementation Details
 
@@ -72,30 +77,37 @@ python https_server.py
 - **Offline analysis**: Decodes audio buffer directly (no playback required)
 - **Configurable detection**: Edit `noiseDetector.js` constants for tuning
 - **Manifest persistence**: Auto-loads manifest.json files when uploading audio
+- **Session persistence**: IndexedDB caches latest recording + events
+- **Debug mode**: Add `?debug` URL parameter to enable developer UI
 
 ## Noise Detection Configuration
 
 Edit `js/detection/noiseDetector.js` to adjust:
-- `BASELINE_INTERVAL_MS`: 300000 (5 minutes - how often to recalculate baseline)
-- `BASELINE_PERCENTILE`: 0.3 (30th percentile - lower = quieter baseline)
-- `NOISE_THRESHOLD_MULTIPLIER`: 2.0 (2x louder = +6dB threshold above baseline)
+- `BASELINE_INTERVAL_MS`: 120000 (2 minutes - how often to recalculate baseline)
+- `BASELINE_PERCENTILE`: 0.5 (50th percentile - median value for baseline)
+- `NOISE_THRESHOLD_MULTIPLIER`: 2.5 (2.5x louder = +8dB threshold above baseline)
 - `EVENT_PRE_BUFFER_MS`: 2000 (2 seconds before event)
 - `EVENT_POST_BUFFER_MS`: 2000 (2 seconds after event)
 - `MIN_EVENT_GAP_MS`: 1000 (merge events within 1 second)
 
-**Note**: Threshold uses logarithmic dB scale. `NOISE_THRESHOLD_MULTIPLIER` of 2.0 adds ~6dB to baseline (20 × log₁₀(2)). For 3x louder, use 3.0 (+9.5dB).
+**Note**: Threshold uses logarithmic dB scale. `NOISE_THRESHOLD_MULTIPLIER` of 2.5 adds ~8dB to baseline (20 × log₁₀(2.5)). For 3x louder, use 3.0 (+9.5dB).
 
 ## Usage
 
 1. **Record**: Click 🎙️ to start recording with live noise detection
-2. **Upload**: Click 📁 to load audio file (+ optional manifest.json with same name)
-3. **Scan**: Click 🔍 to analyze uploaded file for noise events (no playback)
-4. **View**: Toggle between frequency bands → waveform/FFT → events
-5. **Events**: Click any event to jump to that timestamp
-6. **Download**: Saves audio + manifest.json (if events detected)
+2. **Stop**: Click ⏹️ to stop recording (auto-analyzes for events)
+3. **Upload**: Click 📁 to load audio file (auto-scans for events)
+4. **View**: While recording: toggle frequency bands ↔ waveform/FFT | After recording: view events timeline
+5. **Events**: Click any event to jump to that timestamp and play
+6. **Download**: Saves audio file with timestamp
 
-### Manifest Auto-Loading
-When uploading files, select both the audio file and its manifest JSON (if available). The app will automatically detect and load `filename-manifest.json` to display previously detected events without re-scanning.
+### Debug Mode
+Add `?debug` to URL (e.g., `https://localhost:443?debug`) to enable:
+- Manual scan button (🔍)
+- Play/pause controls (▶️)
+- Progress slider with time display
+- State information panel
+- Non-auto scanning on upload
 
 ## State Management
 

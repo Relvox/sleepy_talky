@@ -219,3 +219,22 @@ button:disabled {
     min-width: 150px;
     text-align: center;
 }
+
+.progress-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 800px;
+    padding: 10px;
+}
+
+.progress-container input[type="range"] {
+    flex: 1;
+}
+
+.progress-container span {
+    font-family: monospace;
+    color: #fff;
+    min-width: 40px;
+}
