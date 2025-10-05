@@ -11,6 +11,7 @@ except ImportError:
     import cryptography  # Try importing again after install
 
 # Step 2: Continue with imports
+import os
 import http.server
 import ssl
 import socket
@@ -98,8 +99,6 @@ def start_https_server(host="localhost", port=8000):
 
 
 if __name__ == "__main__":
-    import os
-
     # Get local IP address
     hostname = socket.gethostname()
     local_ip = socket.gethostbyname(hostname)
