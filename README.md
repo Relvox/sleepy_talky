@@ -144,3 +144,8 @@ sleepy/
 4. **Buffering**: Captures 2 seconds before and after each event
 5. **Merging**: Combines events within 1 second
 6. **Storage**: Saves to IndexedDB for persistence
+
+## Attributions
+[Speech balloon icons created by Freepik - Flaticon](https://www.flaticon.com/free-icons/speech-balloon)
+
+<img src="speech-bubble.png" height="64"/>

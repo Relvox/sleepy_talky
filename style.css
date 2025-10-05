@@ -11,6 +11,18 @@ body {
     padding: 10px;
 }
 
+h1 {
+    font-family: "Georgia", "Times New Roman", serif;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+h1 img {
+    vertical-align: middle;
+    height: 2em;
+}
+
 #status {
     font-size: 18px;
     font-weight: bold;
