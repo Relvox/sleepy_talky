@@ -1,5 +1,5 @@
 // Unified audio analysis for detecting noise events
-// Process audio in chunks for efficiency (no need to simulate live playback)
+// Process audio in chunks to avoid memory crashes with large files
 
 // Configurable detection parameters
 const BASELINE_PERCENTILE = 0.5; // Use 50th percentile (median) as baseline
@@ -8,7 +8,7 @@ const EVENT_PRE_BUFFER_MS = 2000; // Include 2s before event
 const EVENT_POST_BUFFER_MS = 2000; // Include 2s after event
 const MIN_EVENT_GAP_MS = 1000; // Merge events within 1s
 const SAMPLE_INTERVAL_MS = 50; // Calculate volume every 50ms
-const CHUNK_DURATION_MS = 30 * 60 * 1000; // Process in 30-minute chunks
+const CHUNK_SIZE_MB = 10; // Process/decode audio in 10MB chunks to avoid memory crashes
 
 export class AudioAnalyzer {
   constructor() {
@@ -17,9 +17,8 @@ export class AudioAnalyzer {
 
   async analyzeAudio(audioBlob, onProgress, onStatusUpdate) {
     console.log("[AudioAnalyzer] Starting analysis...");
-    console.log(
-      `[AudioAnalyzer] Blob size: ${(audioBlob.size / 1024 / 1024).toFixed(2)} MB`,
-    );
+    const blobSizeMB = audioBlob.size / 1024 / 1024;
+    console.log(`[AudioAnalyzer] Blob size: ${blobSizeMB.toFixed(2)} MB`);
 
     // Create audio context for decoding
     if (onStatusUpdate) onStatusUpdate("Creating audio context...");
@@ -27,56 +26,98 @@ export class AudioAnalyzer {
       window.webkitAudioContext)();
     console.log("[AudioAnalyzer] Audio context created");
 
-    // Decode audio data
-    if (onStatusUpdate) onStatusUpdate("Decoding audio file...");
-    console.log("[AudioAnalyzer] Decoding audio buffer...");
-    const arrayBuffer = await audioBlob.arrayBuffer();
+    // Process audio in chunks to avoid memory crashes
+    const chunkSizeBytes = CHUNK_SIZE_MB * 1024 * 1024;
+    const numChunks = Math.ceil(audioBlob.size / chunkSizeBytes);
     console.log(
-      `[AudioAnalyzer] ArrayBuffer loaded: ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`,
+      `[AudioAnalyzer] Processing ${numChunks} chunk(s) of ${CHUNK_SIZE_MB}MB each`,
     );
 
-    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    let allVolumeSamples = [];
+    let totalDuration = 0;
+    let sampleRate = 0;
+    let currentTimeOffset = 0;
 
-    const duration = audioBuffer.duration * 1000; // Convert to ms
-    const sampleRate = audioBuffer.sampleRate;
-    const channelData = audioBuffer.getChannelData(0); // Use first channel
+    for (let chunkIdx = 0; chunkIdx < numChunks; chunkIdx++) {
+      const start = chunkIdx * chunkSizeBytes;
+      const end = Math.min((chunkIdx + 1) * chunkSizeBytes, audioBlob.size);
+      const chunkBlob = audioBlob.slice(start, end);
+
+      if (onStatusUpdate) {
+        onStatusUpdate(`Decoding chunk ${chunkIdx + 1}/${numChunks}...`);
+      }
+      console.log(
+        `[AudioAnalyzer] Decoding chunk ${chunkIdx + 1}/${numChunks} (${(chunkBlob.size / 1024 / 1024).toFixed(2)} MB)`,
+      );
+
+      // Decode this chunk
+      const arrayBuffer = await chunkBlob.arrayBuffer();
+      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+
+      sampleRate = audioBuffer.sampleRate;
+      const chunkDuration = audioBuffer.duration * 1000; // ms
+      const channelData = audioBuffer.getChannelData(0);
+
+      console.log(
+        `[AudioAnalyzer] Chunk ${chunkIdx + 1} decoded: ${(chunkDuration / 1000).toFixed(1)}s at ${sampleRate}Hz`,
+      );
+
+      // Calculate volume samples for this chunk
+      if (onStatusUpdate) {
+        onStatusUpdate(`Analyzing chunk ${chunkIdx + 1}/${numChunks}...`);
+      }
+
+      const chunkVolumeSamples = this.calculateVolumeSamples(
+        channelData,
+        sampleRate,
+        chunkDuration,
+        (progress) => {
+          // Overall progress across all chunks
+          const overallProgress =
+            ((chunkIdx + progress / 100) / numChunks) * 100;
+          if (onProgress) onProgress(overallProgress);
+        },
+        null, // Don't send per-chunk status updates to avoid spam
+      );
+
+      // Adjust timestamps to account for previous chunks
+      chunkVolumeSamples.forEach((sample) => {
+        sample.time += currentTimeOffset;
+      });
+
+      allVolumeSamples = allVolumeSamples.concat(chunkVolumeSamples);
+      totalDuration += chunkDuration;
+      currentTimeOffset = totalDuration;
+
+      console.log(
+        `[AudioAnalyzer] Chunk ${chunkIdx + 1} complete: ${chunkVolumeSamples.length} samples, total: ${allVolumeSamples.length}`,
+      );
+    }
 
     console.log(
-      `[AudioAnalyzer] Audio decoded: ${(duration / 1000).toFixed(1)}s at ${sampleRate}Hz`,
-    );
-    console.log(`[AudioAnalyzer] Channel data samples: ${channelData.length}`);
-
-    // Calculate volume samples
-    if (onStatusUpdate) onStatusUpdate("Calculating volume levels...");
-    console.log("[AudioAnalyzer] Calculating volume samples...");
-    const volumeSamples = this.calculateVolumeSamples(
-      channelData,
-      sampleRate,
-      duration,
-      onProgress,
-      onStatusUpdate,
+      `[AudioAnalyzer] All chunks decoded: ${(totalDuration / 1000).toFixed(1)}s total`,
     );
     console.log(
-      `[AudioAnalyzer] Generated ${volumeSamples.length} volume samples`,
+      `[AudioAnalyzer] Generated ${allVolumeSamples.length} volume samples`,
     );
 
-    // Detect noise events using chunk-based approach
+    // Detect noise events
     if (onStatusUpdate) onStatusUpdate("Detecting noise events...");
     console.log("[AudioAnalyzer] Detecting noise events...");
     const events = this.detectNoiseEvents(
-      volumeSamples,
-      duration,
+      allVolumeSamples,
+      totalDuration,
       onStatusUpdate,
     );
     console.log(`[AudioAnalyzer] Found ${events.length} noise event(s)`);
 
     // Calculate final baseline
     if (onStatusUpdate) onStatusUpdate("Calculating baseline...");
-    const baseline = this.calculateBaseline(volumeSamples);
+    const baseline = this.calculateBaseline(allVolumeSamples);
     console.log(`[AudioAnalyzer] Final baseline: ${baseline.toFixed(1)} dB`);
 
     if (onStatusUpdate) onStatusUpdate("Analysis complete!");
-    return { events, baseline, duration };
+    return { events, baseline, duration: totalDuration };
   }
 
   calculateVolumeSamples(
@@ -156,107 +197,77 @@ export class AudioAnalyzer {
     const events = [];
     let currentEvent = null;
 
-    // Split into chunks for processing
-    const chunkSizeInSamples = Math.floor(
-      CHUNK_DURATION_MS / SAMPLE_INTERVAL_MS,
-    );
-    const numChunks = Math.ceil(volumeSamples.length / chunkSizeInSamples);
+    if (onStatusUpdate) {
+      onStatusUpdate("Detecting noise events...");
+    }
+
+    // Calculate baseline from all samples
+    const baseline = this.calculateBaseline(volumeSamples);
+    const thresholdDb = 20 * Math.log10(NOISE_THRESHOLD_MULTIPLIER);
+    const threshold = baseline + thresholdDb;
 
     console.log(
-      `[AudioAnalyzer] Processing ${numChunks} chunk(s) of ~${CHUNK_DURATION_MS / 60000} minutes each`,
+      `[AudioAnalyzer] Baseline: ${baseline.toFixed(1)} dB, ` +
+        `threshold: ${threshold.toFixed(1)} dB`,
     );
 
-    for (let chunkIdx = 0; chunkIdx < numChunks; chunkIdx++) {
-      if (onStatusUpdate) {
-        onStatusUpdate(`Processing chunk ${chunkIdx + 1}/${numChunks}...`);
-      }
-      const chunkStart = chunkIdx * chunkSizeInSamples;
-      const chunkEnd = Math.min(
-        (chunkIdx + 1) * chunkSizeInSamples,
-        volumeSamples.length,
-      );
-      const chunkSamples = volumeSamples.slice(chunkStart, chunkEnd);
+    let eventsCount = 0;
 
-      const chunkStartTime = chunkSamples[0].time;
-      const chunkEndTime = chunkSamples[chunkSamples.length - 1].time;
-      console.log(
-        `[AudioAnalyzer] Processing chunk ${chunkIdx + 1}/${numChunks}: ` +
-          `${(chunkStartTime / 1000).toFixed(1)}s - ${(chunkEndTime / 1000).toFixed(1)}s`,
-      );
+    for (const sample of volumeSamples) {
+      const isNoise = sample.volume > threshold;
 
-      // Calculate baseline for this chunk
-      const baseline = this.calculateBaseline(chunkSamples);
-      const thresholdDb = 20 * Math.log10(NOISE_THRESHOLD_MULTIPLIER);
-      const threshold = baseline + thresholdDb;
+      if (isNoise) {
+        if (!currentEvent) {
+          // Start new event
+          currentEvent = {
+            startTime: Math.max(0, sample.time - EVENT_PRE_BUFFER_MS),
+            endTime: sample.time,
+            peakVolume: sample.volume,
+          };
+          console.log(
+            `[AudioAnalyzer] Event started at ${(sample.time / 1000).toFixed(1)}s - ` +
+              `Volume: ${sample.volume.toFixed(1)} dB > Threshold: ${threshold.toFixed(1)} dB`,
+          );
+        } else {
+          // Extend current event
+          currentEvent.endTime = sample.time;
+          currentEvent.peakVolume = Math.max(
+            currentEvent.peakVolume,
+            sample.volume,
+          );
+        }
+      } else if (currentEvent) {
+        // Check if we should finalize the event
+        if (sample.time - currentEvent.endTime >= EVENT_POST_BUFFER_MS) {
+          // Finalize event
+          currentEvent.endTime += EVENT_POST_BUFFER_MS;
 
-      console.log(
-        `[AudioAnalyzer] Chunk ${chunkIdx + 1} baseline: ${baseline.toFixed(1)} dB, ` +
-          `threshold: ${threshold.toFixed(1)} dB`,
-      );
-
-      // Detect events in this chunk
-      let chunkEventsCount = 0;
-
-      for (const sample of chunkSamples) {
-        const isNoise = sample.volume > threshold;
-
-        if (isNoise) {
-          if (!currentEvent) {
-            // Start new event
-            currentEvent = {
-              startTime: Math.max(0, sample.time - EVENT_PRE_BUFFER_MS),
-              endTime: sample.time,
-              peakVolume: sample.volume,
-            };
+          // Merge with previous event if close enough
+          const lastEvent = events[events.length - 1];
+          if (
+            lastEvent &&
+            currentEvent.startTime - lastEvent.endTime <= MIN_EVENT_GAP_MS
+          ) {
             console.log(
-              `[AudioAnalyzer] Event started at ${(sample.time / 1000).toFixed(1)}s - ` +
-                `Volume: ${sample.volume.toFixed(1)} dB > Threshold: ${threshold.toFixed(1)} dB`,
+              `[AudioAnalyzer] Merging event (gap: ${currentEvent.startTime - lastEvent.endTime}ms)`,
+            );
+            lastEvent.endTime = currentEvent.endTime;
+            lastEvent.peakVolume = Math.max(
+              lastEvent.peakVolume,
+              currentEvent.peakVolume,
             );
           } else {
-            // Extend current event
-            currentEvent.endTime = sample.time;
-            currentEvent.peakVolume = Math.max(
-              currentEvent.peakVolume,
-              sample.volume,
+            console.log(
+              `[AudioAnalyzer] Event finalized: ${(currentEvent.startTime / 1000).toFixed(1)}s - ` +
+                `${(currentEvent.endTime / 1000).toFixed(1)}s (peak: ${currentEvent.peakVolume.toFixed(1)} dB)`,
             );
+            events.push({ ...currentEvent });
+            eventsCount++;
           }
-        } else if (currentEvent) {
-          // Check if we should finalize the event
-          if (sample.time - currentEvent.endTime >= EVENT_POST_BUFFER_MS) {
-            // Finalize event
-            currentEvent.endTime += EVENT_POST_BUFFER_MS;
 
-            // Merge with previous event if close enough
-            const lastEvent = events[events.length - 1];
-            if (
-              lastEvent &&
-              currentEvent.startTime - lastEvent.endTime <= MIN_EVENT_GAP_MS
-            ) {
-              console.log(
-                `[AudioAnalyzer] Merging event (gap: ${currentEvent.startTime - lastEvent.endTime}ms)`,
-              );
-              lastEvent.endTime = currentEvent.endTime;
-              lastEvent.peakVolume = Math.max(
-                lastEvent.peakVolume,
-                currentEvent.peakVolume,
-              );
-            } else {
-              console.log(
-                `[AudioAnalyzer] Event finalized: ${(currentEvent.startTime / 1000).toFixed(1)}s - ` +
-                  `${(currentEvent.endTime / 1000).toFixed(1)}s (peak: ${currentEvent.peakVolume.toFixed(1)} dB)`,
-              );
-              events.push({ ...currentEvent });
-              chunkEventsCount++;
-            }
-
-            currentEvent = null;
-          }
+          currentEvent = null;
         }
       }
-
-      console.log(
-        `[AudioAnalyzer] Chunk ${chunkIdx + 1} completed: ${chunkEventsCount} event(s) found`,
-      );
     }
 
     // Finalize any pending event
