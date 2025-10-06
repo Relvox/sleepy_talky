@@ -32,63 +32,15 @@ export class UIManager {
     this.elements.timer.textContent = "";
   }
 
-  updateStateInfo(
-    recorderState,
-    streamActive,
-    chunksCount,
-    totalBytes,
-    hasAudio,
-  ) {
-    this.elements.recorderState.textContent = `Recorder: ${recorderState}`;
-    this.elements.audioState.textContent = `Audio stream: ${streamActive ? "Active" : "Inactive"}`;
-    this.elements.dataState.textContent = `Recorded data: ${chunksCount} chunk(s), ${totalBytes} bytes`;
-    this.elements.blobState.textContent = `Audio file: ${hasAudio ? "Ready for download" : "Not ready"}`;
-  }
-
   setButtonStates(states) {
     if (states.record !== undefined)
       this.elements.recordBtn.disabled = !states.record;
     if (states.stop !== undefined)
       this.elements.stopBtn.disabled = !states.stop;
-    if (states.play !== undefined)
-      this.elements.playBtn.disabled = !states.play;
     if (states.download !== undefined)
       this.elements.downloadBtn.disabled = !states.download;
     if (states.upload !== undefined)
       this.elements.uploadBtn.disabled = !states.upload;
-    if (states.scan !== undefined)
-      this.elements.scanBtn.disabled = !states.scan;
-  }
-
-  setPlayButtonText(isPlaying) {
-    this.elements.playBtn.textContent = isPlaying ? "⏸️" : "▶️";
-  }
-
-  updateProgress(currentTime, duration) {
-    if (duration > 0) {
-      const progress = (currentTime / duration) * 100;
-      this.elements.progressSlider.value = progress;
-      this.elements.currentTime.textContent = this.formatTime(currentTime);
-    }
-  }
-
-  updateDuration(duration) {
-    this.elements.duration.textContent = this.formatTime(duration);
-    this.elements.progressSlider.disabled = false;
-  }
-
-  formatTime(seconds) {
-    if (!isFinite(seconds)) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${String(secs).padStart(TIME_DISPLAY_PADDING, TIME_PAD_CHAR)}`;
-  }
-
-  resetProgress() {
-    this.elements.progressSlider.value = 0;
-    this.elements.progressSlider.disabled = true;
-    this.elements.currentTime.textContent = "0:00";
-    this.elements.duration.textContent = "0:00";
   }
 
   toggleVisualizerDisplay(mode) {

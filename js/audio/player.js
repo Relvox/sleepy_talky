@@ -6,7 +6,6 @@ export class AudioPlayer {
     this.onPause = null;
     this.onEnded = null;
     this.onTimeUpdate = null;
-    this.onLoadedMetadata = null;
     this.audioContext = null;
     this.analyser = null;
     this.source = null;
@@ -25,10 +24,6 @@ export class AudioPlayer {
 
     this.audioElement.ontimeupdate = () => {
       if (this.onTimeUpdate) this.onTimeUpdate();
-    };
-
-    this.audioElement.onloadedmetadata = () => {
-      if (this.onLoadedMetadata) this.onLoadedMetadata();
     };
   }
 

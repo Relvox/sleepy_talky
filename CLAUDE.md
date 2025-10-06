@@ -21,8 +21,7 @@ sleepy/
     │   ├── recorder.js    # MediaRecorder wrapper
     │   └── player.js      # Audio playback + analyser
     ├── detection/
-    │   ├── noiseDetector.js      # Real-time noise detection
-    │   └── offlineAnalyzer.js    # Offline file analysis
+    │   └── audioAnalyzer.js      # Unified audio analysis (chunk-based)
     ├── storage/
     │   └── recordingCache.js     # IndexedDB persistence
     ├── ui/
@@ -38,15 +37,17 @@ sleepy/
 ## Features
 
 - **Recording**: Audio capture with MediaRecorder (audio/mp4 or audio/webm)
-- **Playback**: Scrubbing, play/pause control
+- **Playback**: Event-based playback from timeline
 - **Upload**: Load existing audio files
 - **Download**: Save recordings + manifest JSON with timestamp
 - **Noise Detection**:
-  - Real-time baseline calculation (2min intervals, 50th percentile)
-  - Auto-detect events above 2.5x baseline
+  - Chunk-based analysis (30-minute chunks for efficiency)
+  - Baseline calculation per chunk (50th percentile)
+  - Auto-detect events above 2.5x baseline (~8dB louder)
   - Event merging (1s gap), pre/post buffers (2s each)
-  - Offline scanning for uploaded files
+  - Unified analysis for both recordings and uploaded files
   - IndexedDB caching for session persistence
+  - Real-time progress updates with detailed console logging
 - **Visualizations** (3 modes):
   - Frequency bands (Low: 20-250Hz, Mid: 250-2kHz, High: 2kHz+)
   - Waveform + FFT spectrum
@@ -71,24 +72,25 @@ python https_server.py
 - **Modular design**: Separate concerns (recorder, player, UI, visualizers, detection)
 - **Event-driven**: Callbacks for state changes
 - **Constants extracted**: All magic numbers defined at module top
-- **Real-time analysis**: Web Audio API AnalyserNode (FFT size: 2048)
+- **Real-time visualization**: Web Audio API AnalyserNode (FFT size: 2048) during recording
 - **Self-signed cert**: Auto-generated for HTTPS (required for getUserMedia)
-- **Dual detection modes**: Live (during recording) + offline (scan existing files)
+- **Unified analysis**: Single code path for recordings and uploads (no simulation needed)
+- **Chunk-based processing**: Analyzes audio in 30-minute chunks for memory efficiency
 - **Offline analysis**: Decodes audio buffer directly (no playback required)
-- **Configurable detection**: Edit `noiseDetector.js` constants for tuning
-- **Manifest persistence**: Auto-loads manifest.json files when uploading audio
+- **Configurable detection**: Edit `audioAnalyzer.js` constants for tuning
 - **Session persistence**: IndexedDB caches latest recording + events
-- **Debug mode**: Add `?debug` URL parameter to enable developer UI
+- **Progress feedback**: Real-time UI updates and comprehensive console logging
 
 ## Noise Detection Configuration
 
-Edit `js/detection/noiseDetector.js` to adjust:
-- `BASELINE_INTERVAL_MS`: 120000 (2 minutes - how often to recalculate baseline)
+Edit `js/detection/audioAnalyzer.js` constants to adjust:
 - `BASELINE_PERCENTILE`: 0.5 (50th percentile - median value for baseline)
 - `NOISE_THRESHOLD_MULTIPLIER`: 2.5 (2.5x louder = +8dB threshold above baseline)
 - `EVENT_PRE_BUFFER_MS`: 2000 (2 seconds before event)
 - `EVENT_POST_BUFFER_MS`: 2000 (2 seconds after event)
 - `MIN_EVENT_GAP_MS`: 1000 (merge events within 1 second)
+- `SAMPLE_INTERVAL_MS`: 50 (calculate volume every 50ms)
+- `CHUNK_DURATION_MS`: 1800000 (process in 30-minute chunks)
 
 **Note**: Threshold uses logarithmic dB scale. `NOISE_THRESHOLD_MULTIPLIER` of 2.5 adds ~8dB to baseline (20 × log₁₀(2.5)). For 3x louder, use 3.0 (+9.5dB).
 
@@ -100,23 +102,6 @@ Edit `js/detection/noiseDetector.js` to adjust:
 4. **View**: While recording: toggle frequency bands ↔ waveform/FFT | After recording: view events timeline
 5. **Events**: Click any event to jump to that timestamp and play
 6. **Download**: Saves audio file with timestamp
-
-### Debug Mode
-Add `?debug` to URL (e.g., `https://localhost:443?debug`) to enable:
-- Manual scan button (🔍)
-- Play/pause controls (▶️)
-- Progress slider with time display
-- State information panel
-- Non-auto scanning on upload
-
-## State Management
-
-App tracks 5 states:
-1. Recorder state (inactive/recording/stopped)
-2. Audio stream (active/inactive)
-3. Recorded data (chunks count, bytes)
-4. Audio file (ready/not ready)
-5. Noise events (baseline, event list)
 
 ## Browser Requirements
 

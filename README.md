@@ -59,36 +59,25 @@ A web-based audio recorder designed for capturing and analyzing sleep sounds. Re
 
 ## ⚙️ Advanced Features
 
-### Debug Mode
-Add `?debug` to the URL for developer features:
-```
-https://localhost?debug
-```
-
-Debug mode enables:
-- Manual scan button
-- Play/pause controls
-- Progress slider
-- State information panel
-- Manual upload scanning
-
 ### Tuning Detection Sensitivity
 
-Edit `js/detection/noiseDetector.js` to adjust:
+Edit `js/detection/audioAnalyzer.js` constants to adjust:
 
 ```javascript
-BASELINE_INTERVAL_MS = 120000;        // Update baseline every 2 minutes
 BASELINE_PERCENTILE = 0.5;            // Use median (50th percentile)
 NOISE_THRESHOLD_MULTIPLIER = 2.5;     // Trigger at 2.5x baseline (~8dB louder)
 EVENT_PRE_BUFFER_MS = 2000;           // Capture 2s before event
 EVENT_POST_BUFFER_MS = 2000;          // Capture 2s after event
 MIN_EVENT_GAP_MS = 1000;              // Merge events within 1s
+SAMPLE_INTERVAL_MS = 50;              // Calculate volume every 50ms
+CHUNK_DURATION_MS = 1800000;          // Process in 30-minute chunks
 ```
 
 **Tips:**
 - Lower `BASELINE_PERCENTILE` (e.g., 0.3) = quieter baseline, more sensitive
 - Higher `NOISE_THRESHOLD_MULTIPLIER` (e.g., 3.0) = less sensitive, only loud events
 - Increase `MIN_EVENT_GAP_MS` to merge more events together
+- Adjust `CHUNK_DURATION_MS` for different memory/processing trade-offs
 
 ## 🔧 Technical Requirements
 
@@ -112,7 +101,7 @@ MIN_EVENT_GAP_MS = 1000;              // Merge events within 1s
 
 **"No events detected"**
 - Audio may be consistently quiet
-- Try adjusting sensitivity in `noiseDetector.js`
+- Try adjusting sensitivity in `audioAnalyzer.js`
 - Check microphone is working and not muted
 
 **Server won't start on port 443**
@@ -139,11 +128,13 @@ sleepy/
 ## 💡 How It Works
 
 1. **Recording**: Captures audio using browser's MediaRecorder API
-2. **Analysis**: Calculates baseline volume from ambient sound
-3. **Detection**: Identifies events exceeding 2.5x baseline (configurable)
-4. **Buffering**: Captures 2 seconds before and after each event
-5. **Merging**: Combines events within 1 second
-6. **Storage**: Saves to IndexedDB for persistence
+2. **Analysis**: Processes audio in 30-minute chunks for efficiency
+3. **Baseline**: Calculates median volume level per chunk
+4. **Detection**: Identifies events exceeding 2.5x baseline (~8dB louder, configurable)
+5. **Buffering**: Captures 2 seconds before and after each event
+6. **Merging**: Combines events within 1 second
+7. **Storage**: Saves to IndexedDB for persistence
+8. **Progress**: Real-time UI updates and detailed console logging
 
 ## Attributions
 [Speech balloon icons created by Freepik - Flaticon](https://www.flaticon.com/free-icons/speech-balloon)

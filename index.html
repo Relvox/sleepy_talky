@@ -15,9 +15,7 @@
         <div class="controls">
             <button id="record" title="Record audio">🎙️</button>
             <button id="stop" disabled title="Stop recording">⏹️</button>
-            <button id="play" disabled title="Play/Pause">▶️</button>
             <button id="upload" title="Upload audio file">📁</button>
-            <button id="scan" disabled title="Scan for noise events">🔍</button>
             <button id="download" disabled title="Download audio + manifest">
                 💾
             </button>
@@ -53,20 +51,6 @@
             <div id="baselineLevel" style="display: none">Baseline: --</div>
         </div>
 
-        <div class="progress-container">
-            <span id="currentTime">0:00</span>
-            <input
-                type="range"
-                id="progressSlider"
-                min="0"
-                max="100"
-                value="0"
-                step="0.1"
-                disabled
-            />
-            <span id="duration">0:00</span>
-        </div>
-
         <input
             type="file"
             id="fileInput"
@@ -75,14 +59,6 @@
         />
 
         <audio id="audioPlayer" style="display: none"></audio>
-
-        <div id="stateInfo">
-            <div><strong>App State:</strong></div>
-            <div id="recorderState">Recorder: Not initialized</div>
-            <div id="audioState">Audio stream: Inactive</div>
-            <div id="dataState">Recorded data: None</div>
-            <div id="blobState">Audio file: Not ready</div>
-        </div>
 
         <script type="module" src="js/app.js"></script>
     </body>

@@ -13,7 +13,6 @@ export class AudioRecorder {
     this.analyser = null;
     this.startTime = null;
     this.timerInterval = null;
-    this.onDataAvailable = null;
     this.onStop = null;
     this.onError = null;
     this.onTimer = null;
@@ -56,9 +55,6 @@ export class AudioRecorder {
 
     this.mediaRecorder.ondataavailable = (e) => {
       this.chunks.push(e.data);
-      if (this.onDataAvailable) {
-        this.onDataAvailable(this.chunks);
-      }
     };
 
     this.mediaRecorder.onstop = () => {
@@ -115,16 +111,5 @@ export class AudioRecorder {
 
   isRecording() {
     return this.mediaRecorder && this.mediaRecorder.state !== "inactive";
-  }
-
-  getState() {
-    return {
-      recorderState: this.mediaRecorder
-        ? this.mediaRecorder.state
-        : "Not initialized",
-      streamActive: this.stream && this.stream.active,
-      chunksCount: this.chunks.length,
-      totalBytes: this.chunks.reduce((acc, c) => acc + c.size, 0),
-    };
   }
 }

@@ -131,10 +131,6 @@ button:disabled {
     background: #95a5a6;
 }
 
-#play {
-    background: #3498db;
-}
-
 #download {
     background: #27ae60;
     font-size: 18px;
@@ -144,23 +140,6 @@ button:disabled {
 
 #upload {
     background: #3498db;
-}
-
-#scan {
-    background: #9b59b6;
-}
-
-#stateInfo {
-    margin-top: 10px;
-    padding: 10px;
-    background: #2c3e50;
-    border-radius: 6px;
-    font-size: 12px;
-    min-width: 250px;
-}
-
-#stateInfo div {
-    margin: 3px 0;
 }
 
 .visualizer {
@@ -230,23 +209,4 @@ button:disabled {
     border-radius: 4px;
     min-width: 150px;
     text-align: center;
-}
-
-.progress-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    max-width: 800px;
-    padding: 10px;
-}
-
-.progress-container input[type="range"] {
-    flex: 1;
-}
-
-.progress-container span {
-    font-family: monospace;
-    color: #fff;
-    min-width: 40px;
 }
