@@ -12,7 +12,88 @@ export class EventsListVisualizer {
   }
 
   updatePlayingEvent(index) {
+    const previousIndex = this.playingEventIndex;
     this.playingEventIndex = index;
+
+    console.log("[EventsList] updatePlayingEvent called:", {
+      previousIndex,
+      newIndex: index,
+      eventsCount: this.events.length,
+    });
+
+    // Update only the affected event items without re-rendering
+    if (!this.container) {
+      console.warn("[EventsList] No container found");
+      return;
+    }
+
+    // Update previously playing event (if any)
+    if (previousIndex !== null && previousIndex !== undefined) {
+      const prevEventDiv = this.container.querySelector(
+        `[data-event-index="${previousIndex}"]`,
+      );
+      console.log(
+        "[EventsList] Previous event div:",
+        prevEventDiv,
+        "for index:",
+        previousIndex,
+      );
+      if (prevEventDiv) {
+        this.updateEventItemStyle(prevEventDiv, previousIndex, false);
+      }
+    }
+
+    // Update currently playing event (if any)
+    if (index !== null && index !== undefined) {
+      const currentEventDiv = this.container.querySelector(
+        `[data-event-index="${index}"]`,
+      );
+      console.log(
+        "[EventsList] Current event div:",
+        currentEventDiv,
+        "for index:",
+        index,
+      );
+      if (currentEventDiv) {
+        this.updateEventItemStyle(currentEventDiv, index, true);
+      }
+    }
+  }
+
+  updateEventItemStyle(eventDiv, index, isPlaying) {
+    if (!this.events[index]) return;
+
+    // Update background and border
+    eventDiv.style.background = isPlaying ? "#3498db" : "#2c3e50";
+    eventDiv.style.borderLeft = `4px solid ${isPlaying ? "#95e1d3" : "transparent"}`;
+
+    // Update hover handlers
+    const currentIsPlaying = isPlaying;
+    eventDiv.onmouseenter = () => {
+      const stillPlaying = this.playingEventIndex === index;
+      if (!stillPlaying) eventDiv.style.background = "#34495e";
+    };
+    eventDiv.onmouseleave = () => {
+      const stillPlaying = this.playingEventIndex === index;
+      eventDiv.style.background = stillPlaying ? "#3498db" : "#2c3e50";
+    };
+
+    // Update icon and status text
+    const event = this.events[index];
+    const startTime = this.formatTime(event.startTime / 1000);
+    const duration = this.formatTime((event.endTime - event.startTime) / 1000);
+    const peakDb = event.peakVolume.toFixed(1);
+    const icon = isPlaying ? "⏸️" : "▶️";
+    const statusText = isPlaying
+      ? '<span style="color: #95e1d3; font-size: 11px; margin-left: 8px;">● PLAYING</span>'
+      : "";
+
+    eventDiv.innerHTML = `
+      <div style="font-weight: bold; color: #fff;">${icon} Event ${index + 1}${statusText}</div>
+      <div style="color: #aaa; font-size: 12px; margin-top: 5px;">
+        Start: ${startTime} • Duration: ${duration} • Peak: ${peakDb} dB
+      </div>
+    `;
   }
 
   formatTime(seconds) {

@@ -79,7 +79,10 @@ export class VisualizationManager {
       this.animationId = null;
     }
 
-    this.clear();
+    // Clear only the real-time visualizations, not the events list
+    this.frequencyBands.clear();
+    this.spectral.clear();
+    this.volumeElement.textContent = "Volume: --";
   }
 
   clear() {
@@ -110,9 +113,5 @@ export class VisualizationManager {
 
   updatePlayingEvent(index) {
     this.eventsList.updatePlayingEvent(index);
-    // Re-render the list to update UI - use stored events
-    if (this.lastEvents && this.lastEvents.length > 0 && this.lastOnPlayEvent) {
-      this.eventsList.renderEventsList(this.lastEvents, this.lastOnPlayEvent);
-    }
   }
 }
