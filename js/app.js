@@ -177,7 +177,25 @@ class SleepRecorderApp {
     this.recordedMimeType = mimeType;
     this.recordingBlob = blob;
 
-    // Run offline analysis to detect noise events
+    // Save to cache immediately (before analysis that might crash)
+    await this.saveRecordingToCache(blob, mimeType, []);
+
+    // Enable download button right away so user can save even if analysis fails
+    this.ui.setButtonStates({
+      record: true,
+      stop: false,
+      play: true,
+      download: true,
+      upload: true,
+      scan: true,
+    });
+    this.ui.updateStatus("✅ Recording saved!", "stopped");
+    this.ui.clearTimer();
+    this.ui.resetProgress();
+    this.updateStateDisplay();
+    this.updateDisplayModeButtons();
+
+    // Run offline analysis to detect noise events (can fail without losing recording)
     this.ui.showFeedback("🔍 Analyzing recording...");
     try {
       const { volumeSamples, duration } =
@@ -201,26 +219,14 @@ class SleepRecorderApp {
         this.ui.showFeedback("✅ No noise events detected");
       }
 
-      // Save to IndexedDB
+      // Update cache with events if analysis succeeded
       await this.saveRecordingToCache(blob, mimeType, events);
     } catch (error) {
       console.error("Analysis error:", error);
-      this.ui.showFeedback("⚠️ Analysis failed, recording saved anyway");
+      this.ui.showFeedback(
+        "⚠️ Analysis failed - recording available for download",
+      );
     }
-
-    this.ui.updateStatus("✅ Recording saved!", "stopped");
-    this.ui.setButtonStates({
-      record: true,
-      stop: false,
-      play: true,
-      download: true,
-      upload: true,
-      scan: true,
-    });
-    this.ui.clearTimer();
-    this.ui.resetProgress();
-    this.updateStateDisplay();
-    this.updateDisplayModeButtons();
   }
 
   handleRecordingError(error) {
