@@ -80,6 +80,8 @@ python https_server.py
 - **Configurable detection**: Edit `audioAnalyzer.js` constants for tuning
 - **Session persistence**: IndexedDB caches latest recording + events
 - **Progress feedback**: Real-time UI updates and comprehensive console logging
+- **Memory constraint**: CANNOT decode entire audio file at once - multi-GB files will crash browser. Current implementation uses CHUNK_SIZE_MB constant to split blob before decoding, but this breaks M4A/AAC container format causing decode failures. Need alternative approach that doesn't split encoded audio stream.
+- **Playback speed limitation**: "Live decoding" via accelerated playback (e.g., 16x speed) is too slow for analysis. An 8-hour recording would take 30 minutes to analyze at 16x speed, making this approach impractical. Real-time playback-based analysis should NOT be attempted.
 
 ## Noise Detection Configuration
 

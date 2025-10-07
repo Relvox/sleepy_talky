@@ -17,6 +17,7 @@ export class AudioRecorder {
     this.onError = null;
     this.onTimer = null;
     this.mimeType = null;
+    this.silentAudio = null; // Keep-awake audio element
   }
 
   async start() {
@@ -88,6 +89,16 @@ export class AudioRecorder {
       }
     }, TIMER_UPDATE_INTERVAL_MS);
 
+    // Play silent audio to prevent phone sleep (Android Chrome workaround)
+    this.silentAudio = new Audio(
+      "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
+    );
+    this.silentAudio.loop = true;
+    this.silentAudio.volume = 0.01; // Very quiet but not 0
+    this.silentAudio.play().catch((err) => {
+      console.warn("Could not play keep-awake audio:", err);
+    });
+
     return this.analyser;
   }
 
@@ -105,6 +116,12 @@ export class AudioRecorder {
         this.audioContext.close();
         this.audioContext = null;
         this.analyser = null;
+      }
+
+      // Stop keep-awake audio
+      if (this.silentAudio) {
+        this.silentAudio.pause();
+        this.silentAudio = null;
       }
     }
   }
