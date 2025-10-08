@@ -83,11 +83,23 @@ def start_https_server(host="localhost", port=8000):
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(certfile=cert_file.name, keyfile=key_file.name)
 
+        # Custom handler with MIME types
+        class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+            def end_headers(self):
+                # Add CORS headers
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "*")
+                # Add proper MIME types
+                if self.path.endswith(".wasm"):
+                    self.send_header("Content-Type", "application/wasm")
+                elif self.path.endswith(".js"):
+                    self.send_header("Content-Type", "application/javascript")
+                super().end_headers()
+
         # Start HTTPS server
         server_address = (host, port)
-        httpd = http.server.HTTPServer(
-            server_address, http.server.SimpleHTTPRequestHandler
-        )
+        httpd = http.server.HTTPServer(server_address, CustomHTTPRequestHandler)
         httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
 
         print(f"[INFO]: HTTPS File Server running at https://{host}:{port}")
