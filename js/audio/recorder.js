@@ -18,6 +18,7 @@ export class AudioRecorder {
     this.onTimer = null;
     this.mimeType = null;
     this.silentAudio = null; // Keep-awake audio element
+    this.wakeLock = null; // Screen Wake Lock API
   }
 
   async start() {
@@ -89,14 +90,29 @@ export class AudioRecorder {
       }
     }, TIMER_UPDATE_INTERVAL_MS);
 
-    // Play silent audio to prevent phone sleep (Android Chrome workaround)
+    // Request Wake Lock to prevent screen sleep (modern browsers)
+    if ("wakeLock" in navigator) {
+      try {
+        this.wakeLock = await navigator.wakeLock.request("screen");
+        console.log("[Recorder] Wake Lock activated");
+
+        // Re-request wake lock if it's released (e.g., tab visibility change)
+        this.wakeLock.addEventListener("release", () => {
+          console.log("[Recorder] Wake Lock released");
+        });
+      } catch (err) {
+        console.warn("[Recorder] Wake Lock not available:", err);
+      }
+    }
+
+    // Play silent audio to prevent phone sleep (fallback for older browsers)
     this.silentAudio = new Audio(
       "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
     );
     this.silentAudio.loop = true;
     this.silentAudio.volume = 0.01; // Very quiet but not 0
     this.silentAudio.play().catch((err) => {
-      console.warn("Could not play keep-awake audio:", err);
+      console.warn("[Recorder] Could not play keep-awake audio:", err);
     });
 
     return this.analyser;
@@ -116,6 +132,13 @@ export class AudioRecorder {
         this.audioContext.close();
         this.audioContext = null;
         this.analyser = null;
+      }
+
+      // Release wake lock
+      if (this.wakeLock) {
+        this.wakeLock.release();
+        this.wakeLock = null;
+        console.log("[Recorder] Wake Lock released");
       }
 
       // Stop keep-awake audio

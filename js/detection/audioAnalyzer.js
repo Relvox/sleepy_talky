@@ -4,13 +4,13 @@
 import { extractAudioChunk, initFFmpeg } from "../audio/ffmpegHelper.js";
 
 // Configurable detection parameters
-const BASELINE_PERCENTILE = 0.5; // Use 50th percentile (median) as baseline
-const NOISE_THRESHOLD_MULTIPLIER = 2.5; // Noise is 2.5x baseline (~8dB louder)
+const BASELINE_PERCENTILE = 0.3; // Use 30th percentile (median) as baseline
+const NOISE_THRESHOLD_MULTIPLIER = 1; // Noise is over baseline
 const EVENT_PRE_BUFFER_MS = 2000; // Include 2s before event
 const EVENT_POST_BUFFER_MS = 2000; // Include 2s after event
 const MIN_EVENT_GAP_MS = 1000; // Merge events within 1s
 const SAMPLE_INTERVAL_MS = 50; // Calculate volume every 50ms
-const CHUNK_DURATION_MS = 1800000; // Process in 30-minute chunks (30 * 60 * 1000)
+const CHUNK_DURATION_MS = 10 * 60 * 1000; // Process in 10-minute chunks (30 * 60 * 1000)
 
 export class AudioAnalyzer {
   constructor() {
@@ -150,6 +150,7 @@ export class AudioAnalyzer {
   detectNoiseEvents(volumeSamples, duration, onStatusUpdate) {
     const events = [];
     let currentEvent = null;
+    let lastNoiseTime = null; // Track when we last saw noise
 
     if (onStatusUpdate) {
       onStatusUpdate("Detecting noise events...");
@@ -160,10 +161,19 @@ export class AudioAnalyzer {
     const thresholdDb = 20 * Math.log10(NOISE_THRESHOLD_MULTIPLIER);
     const threshold = baseline + thresholdDb;
 
+    console.log(
+      `[AudioAnalyzer] Baseline: ${baseline.toFixed(1)} dB, Threshold: ${threshold.toFixed(1)} dB (${NOISE_THRESHOLD_MULTIPLIER}x)`,
+    );
+    console.log(
+      `[AudioAnalyzer] Processing ${volumeSamples.length} samples...`,
+    );
+
     for (const sample of volumeSamples) {
       const isNoise = sample.volume > threshold;
 
       if (isNoise) {
+        lastNoiseTime = sample.time; // Update last noise time
+
         if (!currentEvent) {
           // Start new event
           currentEvent = {
@@ -179,11 +189,11 @@ export class AudioAnalyzer {
             sample.volume,
           );
         }
-      } else if (currentEvent) {
-        // Check if we should finalize the event
-        if (sample.time - currentEvent.endTime >= EVENT_POST_BUFFER_MS) {
-          // Finalize event
-          currentEvent.endTime += EVENT_POST_BUFFER_MS;
+      } else if (currentEvent && lastNoiseTime !== null) {
+        // Check if we should finalize the event (use lastNoiseTime instead of currentEvent.endTime)
+        if (sample.time - lastNoiseTime >= EVENT_POST_BUFFER_MS) {
+          // Finalize event with post-buffer
+          currentEvent.endTime = lastNoiseTime + EVENT_POST_BUFFER_MS;
 
           // Merge with previous event if close enough
           const lastEvent = events[events.length - 1];
@@ -198,19 +208,32 @@ export class AudioAnalyzer {
             );
           } else {
             events.push({ ...currentEvent });
+            console.log(
+              `[AudioAnalyzer] Event ${events.length}: ${(currentEvent.startTime / 1000).toFixed(1)}s - ${(currentEvent.endTime / 1000).toFixed(1)}s (peak: ${currentEvent.peakVolume.toFixed(1)} dB)`,
+            );
           }
 
           currentEvent = null;
+          lastNoiseTime = null;
         }
       }
     }
 
-    // Finalize any pending event
-    if (currentEvent) {
-      currentEvent.endTime += EVENT_POST_BUFFER_MS;
+    // Finalize any pending event at the end of the recording
+    if (currentEvent && lastNoiseTime !== null) {
+      currentEvent.endTime = Math.min(
+        lastNoiseTime + EVENT_POST_BUFFER_MS,
+        duration,
+      );
       events.push(currentEvent);
+      console.log(
+        `[AudioAnalyzer] Event ${events.length} (final): ${(currentEvent.startTime / 1000).toFixed(1)}s - ${(currentEvent.endTime / 1000).toFixed(1)}s (peak: ${currentEvent.peakVolume.toFixed(1)} dB)`,
+      );
     }
 
+    console.log(
+      `[AudioAnalyzer] Detection complete: found ${events.length} events`,
+    );
     return events;
   }
 

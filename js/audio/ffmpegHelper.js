@@ -23,8 +23,10 @@ export async function initFFmpeg() {
     try {
       ffmpeg = new FFmpeg();
 
-      // Use relative path to work both locally and on GitHub Pages
-      const baseURL = "./libs/ffmpeg";
+      // Load core files from CDN (saves ~33MB from local hosting)
+      // toBlobURL bypasses CORS restrictions by converting to blob URLs
+      const baseURL =
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
 
       // onProgress?.("Loading FFmpeg WASM (~30MB, first time only)...");
 

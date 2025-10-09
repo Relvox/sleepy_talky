@@ -7,7 +7,7 @@ Web-based audio recorder with real-time visualization for sleep/ambient sound re
 **Frontend**: Vanilla JS (ES6 modules), HTML5, CSS3
 **Backend**: Python HTTPS server with self-signed certificates
 **APIs**: Web Audio API, MediaRecorder API, FFmpeg.wasm
-**Libraries**: FFmpeg.wasm 0.12.10 (hosted locally for CORS compatibility)
+**Libraries**: FFmpeg.wasm 0.12.10 (core files loaded from jsDelivr CDN)
 **PWA**: Progressive Web App with offline support and installability
 
 ## Project Structure
@@ -21,12 +21,10 @@ sleepy/
 ├── https_server.py        # HTTPS server (port 443, CORS + MIME types)
 ├── icons/                 # PWA icons (generate from speech-bubble.png)
 ├── libs/
-│   └── ffmpeg/            # FFmpeg.wasm files (locally hosted)
-│       ├── ffmpeg.js
-│       ├── ffmpeg-util.js
-│       ├── ffmpeg-core.js
-│       ├── ffmpeg-core.wasm
-│       └── 814.ffmpeg.js  # Worker chunk
+│   └── ffmpeg/            # FFmpeg.wasm wrapper files (core loaded from CDN)
+│       ├── ffmpeg.js      # Main API wrapper (local)
+│       └── ffmpeg-util.js # Utilities: toBlobURL, fetchFile (local)
+│       # Note: ffmpeg-core.js, ffmpeg-core.wasm, 814.ffmpeg.js loaded from CDN
 └── js/
     ├── app.js             # Main application orchestrator
     ├── audio/
@@ -98,8 +96,8 @@ python https_server.py
 - **Offline analysis**: Decodes extracted chunks directly (no playback required)
 - **Configurable detection**: Edit `audioAnalyzer.js` constants for tuning
 - **Session persistence**: IndexedDB caches latest recording + events
-- **Local FFmpeg hosting**: All FFmpeg.wasm files served locally to avoid CORS issues
-- **HTTPS server enhancements**: Custom MIME types and CORS headers for WASM/JS files
+- **CDN-based FFmpeg**: Core files (~33MB) loaded from jsDelivr CDN using toBlobURL() for CORS bypass
+- **HTTPS server**: Required for microphone access and PWA functionality
 - **PWA Features**:
   - Service Worker for offline functionality
   - Installable on mobile and desktop
@@ -160,7 +158,7 @@ Edit `js/detection/audioAnalyzer.js` constants to adjust:
 The PWA caches all static assets for offline use:
 - Core JavaScript modules
 - CSS and HTML
-- FFmpeg.wasm library files
+- FFmpeg.wasm wrapper files (ffmpeg.js, ffmpeg-util.js)
 - UI assets (icons, images)
 
-**Note**: Recording requires microphone access (online). Analysis works offline if recording/file is already loaded.
+**Note**: First-time FFmpeg usage requires internet to download core files (~33MB) from CDN. These are then cached by the Service Worker for offline use. Recording requires microphone access.

@@ -1,5 +1,5 @@
 // Service Worker for Sleepy Talky PWA
-const CACHE_NAME = "sleepy-talky-v3";
+const CACHE_NAME = "sleepy-talky-v5"; // Bumped for wake lock + detection fix
 const RUNTIME_CACHE = "sleepy-talky-runtime";
 
 // Detect base path from service worker location
@@ -31,9 +31,8 @@ const STATIC_ASSETS = [
   `${BASE_PATH}/js/visualizers/eventsList.js`,
   `${BASE_PATH}/libs/ffmpeg/ffmpeg.js`,
   `${BASE_PATH}/libs/ffmpeg/ffmpeg-util.js`,
-  `${BASE_PATH}/libs/ffmpeg/ffmpeg-core.js`,
-  `${BASE_PATH}/libs/ffmpeg/ffmpeg-core.wasm`,
-  `${BASE_PATH}/libs/ffmpeg/814.ffmpeg.js`,
+  // Note: ffmpeg-core.js, ffmpeg-core.wasm, and 814.ffmpeg.js are loaded from CDN
+  // They'll be cached in RUNTIME_CACHE on first use
 ];
 
 // Install event - cache static assets
