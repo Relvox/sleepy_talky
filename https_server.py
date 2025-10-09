@@ -95,6 +95,12 @@ def start_https_server(host="localhost", port=8000):
                     self.send_header("Content-Type", "application/wasm")
                 elif self.path.endswith(".js"):
                     self.send_header("Content-Type", "application/javascript")
+                elif self.path.endswith("manifest.json") or self.path.endswith(
+                    ".webmanifest"
+                ):
+                    self.send_header("Content-Type", "application/manifest+json")
+                elif self.path.endswith(".json"):
+                    self.send_header("Content-Type", "application/json")
                 super().end_headers()
 
         # Start HTTPS server

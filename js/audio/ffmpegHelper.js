@@ -10,7 +10,7 @@ let loadPromise = null;
  * Initialize FFmpeg instance (singleton pattern)
  * Downloads ~30MB of WASM files on first call
  */
-export async function initFFmpeg(onProgress = null) {
+export async function initFFmpeg() {
   if (ffmpeg) return ffmpeg;
 
   // If already loading, wait for existing load to complete
@@ -23,17 +23,10 @@ export async function initFFmpeg(onProgress = null) {
     try {
       ffmpeg = new FFmpeg();
 
-      // Progress logging
-      if (onProgress) {
-        ffmpeg.on("progress", ({ progress }) => {
-          onProgress(`FFmpeg processing: ${(progress * 100).toFixed(1)}%`);
-        });
-      }
+      // Use relative path to work both locally and on GitHub Pages
+      const baseURL = "./libs/ffmpeg";
 
-      // Use local files to avoid CORS issues
-      const baseURL = "/libs/ffmpeg";
-
-      onProgress?.("Loading FFmpeg WASM (~30MB, first time only)...");
+      // onProgress?.("Loading FFmpeg WASM (~30MB, first time only)...");
 
       const coreURL = await toBlobURL(
         `${baseURL}/ffmpeg-core.js`,
@@ -75,16 +68,14 @@ export async function initFFmpeg(onProgress = null) {
  * @param {Blob} audioBlob - Source audio file (any format)
  * @param {number} startSeconds - Start time in seconds
  * @param {number} durationSeconds - Duration to extract in seconds
- * @param {Function} onProgress - Optional progress callback
  * @returns {Promise<Blob>} WAV audio blob of the extracted chunk
  */
 export async function extractAudioChunk(
   audioBlob,
   startSeconds,
   durationSeconds,
-  onProgress = null,
 ) {
-  const ffmpeg = await initFFmpeg(onProgress);
+  const ffmpeg = await initFFmpeg();
 
   // Determine input format from blob type
   const mimeType = audioBlob.type || "audio/mp4";
@@ -147,8 +138,8 @@ export async function extractAudioChunk(
  * @param {Blob} audioBlob - Source audio file
  * @returns {Promise<number>} Duration in seconds
  */
-export async function getAudioDuration(audioBlob, onProgress = null) {
-  const ffmpeg = await initFFmpeg(onProgress);
+export async function getAudioDuration(audioBlob) {
+  const ffmpeg = await initFFmpeg();
 
   const mimeType = audioBlob.type || "audio/mp4";
   const extension = mimeType.includes("webm")

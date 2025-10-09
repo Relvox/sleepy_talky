@@ -89,8 +89,6 @@ export class AudioAnalyzer {
         channelData,
         sampleRate,
         actualChunkDuration,
-        null,
-        null,
       );
 
       // Adjust timestamps to account for previous chunks
@@ -122,13 +120,7 @@ export class AudioAnalyzer {
     return { events, baseline, duration: totalDuration };
   }
 
-  calculateVolumeSamples(
-    channelData,
-    sampleRate,
-    duration,
-    onProgress,
-    onStatusUpdate,
-  ) {
+  calculateVolumeSamples(channelData, sampleRate, duration) {
     const volumeSamples = [];
     const samplesPerInterval = Math.floor(
       (SAMPLE_INTERVAL_MS / 1000) * sampleRate,

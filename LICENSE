@@ -19,3 +19,19 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+THIRD-PARTY SOFTWARE NOTICES
+
+This project incorporates third-party libraries with separate licenses:
+
+1. FFmpeg - Licensed under GNU Lesser General Public License (LGPL) v2.1 or later
+   Source: http://ffmpeg.org
+   License: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+2. Flaticon Icons - Free license with attribution
+   Creator: Freepik
+   Source: https://www.flaticon.com/free-icons/speech-balloon
+
+For complete third-party license information, see THIRD_PARTY_LICENSES.md

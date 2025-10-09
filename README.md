@@ -136,7 +136,18 @@ sleepy/
 7. **Storage**: Saves to IndexedDB for persistence
 8. **Progress**: Real-time UI updates and detailed console logging
 
-## Attributions
-[Speech balloon icons created by Freepik - Flaticon](https://www.flaticon.com/free-icons/speech-balloon)
+## 📜 License & Attributions
+
+This project is licensed under the MIT License (see LICENSE file).
+
+### Third-Party Libraries
+
+**FFmpeg.wasm** - This software uses libraries from the [FFmpeg](http://ffmpeg.org) project under the [LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html) license.
+- FFmpeg.wasm wrapper: MIT License
+- FFmpeg core libraries: LGPL v2.1+
+- Source code: [FFmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm) | [FFmpeg.wasm-core](https://github.com/ffmpegwasm/ffmpeg.wasm-core) | [FFmpeg](https://github.com/FFmpeg/FFmpeg)
+- Full license details: See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
+
+**Icons** - [Speech balloon icons created by Freepik - Flaticon](https://www.flaticon.com/free-icons/speech-balloon)
 
 <img src="speech-bubble.png" height="64"/>

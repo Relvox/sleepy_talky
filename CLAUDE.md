@@ -8,14 +8,18 @@ Web-based audio recorder with real-time visualization for sleep/ambient sound re
 **Backend**: Python HTTPS server with self-signed certificates
 **APIs**: Web Audio API, MediaRecorder API, FFmpeg.wasm
 **Libraries**: FFmpeg.wasm 0.12.10 (hosted locally for CORS compatibility)
+**PWA**: Progressive Web App with offline support and installability
 
 ## Project Structure
 
 ```
 sleepy/
-├── index.html              # Main UI
+├── index.html              # Main UI with PWA meta tags
 ├── style.css              # Styling
+├── manifest.json          # PWA manifest
+├── sw.js                  # Service Worker for offline support
 ├── https_server.py        # HTTPS server (port 443, CORS + MIME types)
+├── icons/                 # PWA icons (generate from speech-bubble.png)
 ├── libs/
 │   └── ffmpeg/            # FFmpeg.wasm files (locally hosted)
 │       ├── ffmpeg.js
@@ -96,6 +100,13 @@ python https_server.py
 - **Session persistence**: IndexedDB caches latest recording + events
 - **Local FFmpeg hosting**: All FFmpeg.wasm files served locally to avoid CORS issues
 - **HTTPS server enhancements**: Custom MIME types and CORS headers for WASM/JS files
+- **PWA Features**:
+  - Service Worker for offline functionality
+  - Installable on mobile and desktop
+  - Cache-first strategy for static assets
+  - Network-first for HTML to ensure fresh content
+  - Automatic updates with service worker lifecycle management
+  - App manifest with theme colors and icons
 
 ## Noise Detection Configuration
 
@@ -122,5 +133,34 @@ Edit `js/detection/audioAnalyzer.js` constants to adjust:
 ## Browser Requirements
 
 - Modern browser with MediaRecorder API
-- HTTPS context (for microphone access)
+- HTTPS context (for microphone access and PWA)
 - Web Audio API support
+- Service Worker support (for PWA features)
+- IndexedDB support (for offline caching)
+
+## PWA Installation
+
+### Desktop (Chrome/Edge):
+1. Visit the site over HTTPS
+2. Click the install icon (⊕) in the address bar
+3. Or use menu → "Install Sleepy Talky"
+
+### Mobile (iOS Safari):
+1. Visit the site over HTTPS
+2. Tap the Share button
+3. Tap "Add to Home Screen"
+
+### Mobile (Android Chrome):
+1. Visit the site over HTTPS
+2. Tap the three-dot menu
+3. Tap "Add to Home Screen" or "Install App"
+
+## Offline Support
+
+The PWA caches all static assets for offline use:
+- Core JavaScript modules
+- CSS and HTML
+- FFmpeg.wasm library files
+- UI assets (icons, images)
+
+**Note**: Recording requires microphone access (online). Analysis works offline if recording/file is already loaded.

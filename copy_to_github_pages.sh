@@ -38,6 +38,15 @@ if [ -d "$SOURCE_DIR/libs" ]; then
     cp -r "$SOURCE_DIR/libs" "$TARGET_DIR/"
 fi
 
+# Copy PWA files
+echo "Copying PWA files..."
+cp "$SOURCE_DIR/manifest.json" "$TARGET_DIR/" 2>/dev/null || echo "Warning: manifest.json not found"
+
+# Copy icons directory if it exists
+if [ -d "$SOURCE_DIR/icons" ]; then
+    cp -r "$SOURCE_DIR/icons" "$TARGET_DIR/"
+fi
+
 echo ""
 echo "Copy complete!"
 echo "Files copied to: $TARGET_DIR"

@@ -1,0 +1,25 @@
+{
+  "name": "Sleepy Talky - Sleep Sound Recorder",
+  "short_name": "Sleepy Talky",
+  "description": "Record and analyze sleep sounds with automatic noise detection",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#16213e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icons/icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["health", "utilities", "lifestyle"],
+  "prefer_related_applications": false
+}

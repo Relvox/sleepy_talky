@@ -425,6 +425,36 @@ class SleepRecorderApp {
   }
 }
 
+// Register service worker for PWA
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("js/sw.js")
+      .then((registration) => {
+        console.log("[PWA] Service Worker registered:", registration.scope);
+
+        // Check for updates
+        registration.addEventListener("updatefound", () => {
+          const newWorker = registration.installing;
+          console.log("[PWA] New Service Worker found");
+
+          newWorker.addEventListener("statechange", () => {
+            if (
+              newWorker.state === "installed" &&
+              navigator.serviceWorker.controller
+            ) {
+              console.log("[PWA] New content available, please reload");
+              // Could show a notification to user here
+            }
+          });
+        });
+      })
+      .catch((error) => {
+        console.error("[PWA] Service Worker registration failed:", error);
+      });
+  });
+}
+
 // Initialize app when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
   new SleepRecorderApp();
