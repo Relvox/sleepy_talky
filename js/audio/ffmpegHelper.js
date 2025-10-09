@@ -23,12 +23,9 @@ export async function initFFmpeg(onProgress = null) {
     try {
       ffmpeg = new FFmpeg();
 
-      // Optional progress logging
+      // Progress logging
       if (onProgress) {
-        ffmpeg.on("log", ({ message }) => {
-          console.log("[FFmpeg]", message);
-        });
-        ffmpeg.on("progress", ({ progress, time }) => {
+        ffmpeg.on("progress", ({ progress }) => {
           onProgress(`FFmpeg processing: ${(progress * 100).toFixed(1)}%`);
         });
       }
@@ -38,34 +35,17 @@ export async function initFFmpeg(onProgress = null) {
 
       onProgress?.("Loading FFmpeg WASM (~30MB, first time only)...");
 
-      console.log(
-        "[FFmpeg] Fetching core.js from:",
-        `${baseURL}/ffmpeg-core.js`,
-      );
       const coreURL = await toBlobURL(
         `${baseURL}/ffmpeg-core.js`,
         "text/javascript",
-      );
-      console.log("[FFmpeg] Core.js blob URL created:", coreURL);
-
-      console.log(
-        "[FFmpeg] Fetching wasm from:",
-        `${baseURL}/ffmpeg-core.wasm`,
       );
       const wasmURL = await toBlobURL(
         `${baseURL}/ffmpeg-core.wasm`,
         "application/wasm",
       );
-      console.log("[FFmpeg] Wasm blob URL created:", wasmURL);
 
-      console.log("[FFmpeg] Calling ffmpeg.load() with timeout...");
-
-      // Add timeout to detect hanging
-      const loadPromise = ffmpeg.load({
-        coreURL,
-        wasmURL,
-      });
-
+      // Load with timeout to detect hanging
+      const loadPromise = ffmpeg.load({ coreURL, wasmURL });
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(
           () => reject(new Error("FFmpeg load timeout after 30s")),
@@ -74,8 +54,6 @@ export async function initFFmpeg(onProgress = null) {
       });
 
       await Promise.race([loadPromise, timeoutPromise]);
-      console.log("[FFmpeg] ffmpeg.load() completed");
-
       console.log("[FFmpeg] Loaded successfully");
       return ffmpeg;
     } catch (error) {
@@ -122,20 +100,11 @@ export async function extractAudioChunk(
   const outputFileName = "output.wav";
 
   try {
-    onProgress?.(
-      `Writing ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB to FFmpeg...`,
-    );
-
     // Write input file to FFmpeg's virtual filesystem
     await ffmpeg.writeFile(inputFileName, await fetchFile(audioBlob));
 
-    onProgress?.(`Extracting ${durationSeconds}s from ${startSeconds}s...`);
-
     // Extract chunk and convert to WAV
-    // -ss: seek to start position
-    // -t: duration to extract
-    // -acodec pcm_f32le: 32-bit float PCM (native Web Audio format)
-    // -ar 48000: 48kHz sample rate (standard for web audio)
+    // -ss: seek to start position, -t: duration, -acodec: 32-bit float PCM
     await ffmpeg.exec([
       "-ss",
       startSeconds.toString(),
@@ -151,8 +120,6 @@ export async function extractAudioChunk(
       "wav",
       outputFileName,
     ]);
-
-    onProgress?.("Reading extracted chunk...");
 
     // Read output file
     const data = await ffmpeg.readFile(outputFileName);

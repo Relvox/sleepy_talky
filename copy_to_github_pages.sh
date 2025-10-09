@@ -32,6 +32,12 @@ if [ -d "$SOURCE_DIR/js" ]; then
     cp -r "$SOURCE_DIR/js" "$TARGET_DIR/"
 fi
 
+# Copy libs directory (FFmpeg files)
+echo "Copying library files..."
+if [ -d "$SOURCE_DIR/libs" ]; then
+    cp -r "$SOURCE_DIR/libs" "$TARGET_DIR/"
+fi
+
 echo ""
 echo "Copy complete!"
 echo "Files copied to: $TARGET_DIR"
