@@ -1,0 +1,109 @@
+Sleepy Recorder - Complete Project Structure
+=============================================
+
+sleepy-recorder/
+│
+├── 📄 settings.gradle                      # Multi-module configuration
+├── 📄 build.gradle                         # Root build configuration
+├── 📄 .gitignore                          # Git ignore patterns
+├── 📄 README.md                           # Main documentation
+├── 📄 PROJECT_SUMMARY.md                  # Technical summary
+├── 📄 QUICKSTART.md                       # Quick start guide
+├── 📄 STRUCTURE.txt                       # This file
+│
+├── 📁 gradle/
+│   └── wrapper/
+│       └── 📄 gradle-wrapper.properties   # Gradle wrapper config
+│
+├── 📁 core/                               # ⭐ Shared Core Library
+│   ├── 📄 build.gradle                    # Core module build
+│   └── src/main/java/com/sleepy/recorder/core/
+│       ├── 📄 AudioConfig.java            # Audio format settings
+│       ├── audio/
+│       │   ├── 📄 AudioRecorder.java      # Desktop recording (Java Sound)
+│       │   └── 📄 AudioPlayer.java        # Playback with time ranges
+│       ├── codec/
+│       │   ├── 📄 OpusEncoder.java        # PCM → Opus encoding
+│       │   ├── 📄 OpusDecoder.java        # Opus → PCM decoding
+│       │   ├── 📄 OggOpusWriter.java      # Write Ogg container
+│       │   └── 📄 OggOpusReader.java      # Read Ogg container
+│       └── detection/
+│           ├── 📄 AudioAnalyzer.java      # Noise detection algorithm
+│           ├── 📄 NoiseEvent.java         # Event data model
+│           └── 📄 NoiseDetectionConfig.java # Algorithm settings
+│
+├── 📁 desktop/                            # ⭐ JavaFX Desktop App
+│   ├── 📄 build.gradle                    # Desktop module build
+│   └── src/main/
+│       ├── java/com/sleepy/recorder/desktop/
+│       │   ├── 📄 DesktopApp.java         # JavaFX Application
+│       │   └── 📄 MainController.java     # UI Controller
+│       └── resources/
+│           └── 📄 main.fxml               # JavaFX UI layout
+│
+└── 📁 android/                            # ⭐ Android App
+    ├── 📄 build.gradle                    # Android module build
+    └── src/main/
+        ├── 📄 AndroidManifest.xml         # App manifest & permissions
+        ├── java/com/sleepy/recorder/android/
+        │   ├── 📄 MainActivity.java       # Main activity
+        │   ├── 📄 RecordingService.java   # Foreground service
+        │   ├── 📄 AndroidAudioRecorder.java # Android recording
+        │   └── 📄 EventsAdapter.java      # RecyclerView adapter
+        └── res/
+            ├── layout/
+            │   ├── 📄 activity_main.xml   # Main layout
+            │   └── 📄 event_item.xml      # Event list item
+            └── values/
+                └── 📄 strings.xml         # String resources
+
+
+Key Components by Module
+=========================
+
+CORE (Platform-Independent):
+  • Opus encoding/decoding (Concentus library)
+  • Ogg container read/write (RFC 7845)
+  • Noise detection algorithm
+  • Audio configuration
+  • Event data models
+
+DESKTOP (JavaFX):
+  • Record from microphone
+  • Open .opus files
+  • Display events list
+  • Play event segments
+  • Progress indicators
+
+ANDROID (Native):
+  • Foreground service recording
+  • Screen-locked recording (wake lock)
+  • Runtime permissions
+  • File picker integration
+  • Material Design UI
+
+
+Build Outputs
+=============
+
+Desktop:
+  • Executable: desktop/build/install/desktop/bin/desktop
+  • Recordings: ./recording_YYYYMMDD_HHmmss.opus
+
+Android:
+  • APK: android/build/outputs/apk/debug/android-debug.apk
+  • Recordings: /Android/data/com.sleepy.recorder/files/recording_*.opus
+
+
+Total Project Stats
+===================
+
+Files Created:      31
+Java Classes:       15
+Layout Files:       3
+Config Files:       8
+Documentation:      5
+
+Lines of Code:      ~2,500+ (estimated)
+Modules:            3 (core, desktop, android)
+Dependencies:       JavaFX 21, AndroidX, Concentus

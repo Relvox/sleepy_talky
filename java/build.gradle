@@ -1,0 +1,39 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.3'
+    }
+}
+
+plugins {
+    id 'java'
+}
+
+subprojects {
+    repositories {
+        mavenCentral()
+        google()
+        maven { url 'https://jitpack.io' }
+    }
+
+    group = 'com.sleepy.recorder'
+    version = '1.0.0'
+}
+
+// Configure Java projects
+configure(subprojects.findAll { it.name != 'android' }) {
+    apply plugin: 'java'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+
+    dependencies {
+        testImplementation 'junit:junit:4.13.2'
+    }
+}
