@@ -1,5 +1,3 @@
-rootProject.name = 'sleepy-recorder'
+rootProject.name = 'sleepy-recorder-android'
 
-include 'core'
-include 'desktop'
 include 'android'

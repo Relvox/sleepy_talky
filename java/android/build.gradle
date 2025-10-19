@@ -37,16 +37,14 @@ android {
 }
 
 dependencies {
-    implementation(project(':core')) {
-        // Exclude classes that use javax.sound (desktop-only)
-        exclude module: 'javax.sound.sampled'
-    }
-
-    // Add core dependencies directly since we're using the core module
+    // Opus codec
     implementation 'com.github.lostromb:concentus:master-SNAPSHOT'
-    implementation 'org.slf4j:slf4j-api:2.0.9'
-    implementation 'ch.qos.logback:logback-classic:1.4.11'
 
+    // Logging (for Android logcat)
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'com.github.tony19:logback-android:2.0.0'
+
+    // Android UI
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'

@@ -8,10 +8,6 @@ buildscript {
     }
 }
 
-plugins {
-    id 'java'
-}
-
 subprojects {
     repositories {
         mavenCentral()
@@ -21,18 +17,4 @@ subprojects {
 
     group = 'com.sleepy.recorder'
     version = '1.0.0'
-}
-
-// Configure Java projects
-configure(subprojects.findAll { it.name != 'android' }) {
-    apply plugin: 'java'
-
-    java {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    dependencies {
-        testImplementation 'junit:junit:4.13.2'
-    }
 }
