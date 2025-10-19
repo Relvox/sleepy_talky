@@ -46,15 +46,21 @@ public class UniversalAudioDecoder {
         );
 
         try {
-            // For Opus files, use the specialized OggOpusReader for better performance
-            if (fileName.endsWith(".opus")) {
-                logger.info("Detected Opus format, using OggOpusReader");
-                List<PcmChunk> result = decodeOpus(audioFile, progressCallback);
-                logger.info(
-                    "Successfully decoded {} PCM chunks",
-                    result.size()
-                );
-                return result;
+            // For Opus files (.opus or .ogg), check if it's Opus format
+            if (fileName.endsWith(".opus") || fileName.endsWith(".ogg")) {
+                // Check if file is actually Opus by reading magic bytes
+                if (isOpusFile(audioFile)) {
+                    logger.info("Detected Opus format, using OggOpusReader");
+                    List<PcmChunk> result = decodeOpus(
+                        audioFile,
+                        progressCallback
+                    );
+                    logger.info(
+                        "Successfully decoded {} PCM chunks",
+                        result.size()
+                    );
+                    return result;
+                }
             }
 
             // For all other formats, try Java Sound API (with SPI extensions)
@@ -78,6 +84,35 @@ public class UniversalAudioDecoder {
                 logger.error("Caused by: {}", e.getCause().getMessage());
             }
             throw e;
+        }
+    }
+
+    /**
+     * Check if file is an Opus file by reading the Ogg header
+     */
+    private static boolean isOpusFile(File file) {
+        try (FileInputStream fis = new FileInputStream(file)) {
+            byte[] header = new byte[36]; // Need at least 36 bytes to check OpusHead
+            if (fis.read(header) < 36) {
+                return false;
+            }
+
+            // Check for Ogg magic: "OggS"
+            if (
+                header[0] != 'O' ||
+                header[1] != 'g' ||
+                header[2] != 'g' ||
+                header[3] != 'S'
+            ) {
+                return false;
+            }
+
+            // Check for OpusHead signature (starts at byte 28)
+            String opusHead = new String(header, 28, 8);
+            return opusHead.equals("OpusHead");
+        } catch (Exception e) {
+            logger.debug("Could not read file header", e);
+            return false;
         }
     }
 

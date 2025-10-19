@@ -13,6 +13,8 @@
     <HBox spacing="10" alignment="CENTER_LEFT">
         <Button fx:id="recordButton" text="Record" onAction="#handleRecord" prefWidth="100"/>
         <Button fx:id="stopButton" text="Stop Recording" onAction="#handleStop" prefWidth="120" disable="true"/>
+        <Button fx:id="saveButton" text="Save Recording" onAction="#handleSave" prefWidth="120" disable="true"/>
+        <Button fx:id="discardButton" text="Discard" onAction="#handleDiscard" prefWidth="100" disable="true"/>
         <Button fx:id="openButton" text="Open File..." onAction="#handleOpen" prefWidth="100"/>
     </HBox>
 

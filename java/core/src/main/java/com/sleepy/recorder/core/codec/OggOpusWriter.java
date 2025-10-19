@@ -1,205 +1,152 @@
 package com.sleepy.recorder.core.codec;
 
-import com.sleepy.recorder.core.AudioConfig;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Random;
+import java.util.zip.CRC32;
 
 /**
- * Writes Opus packets to Ogg container format
- * Based on RFC 7845 (Ogg Encapsulation for the Opus Audio Codec)
+ * Writes Opus packets into an Ogg container format.
+ * Implements the Ogg Opus specification (RFC 7845).
  */
 public class OggOpusWriter implements AutoCloseable {
-    private static final byte[] OGG_MAGIC = {'O', 'g', 'g', 'S'};
-    private static final int MAX_SEGMENT_SIZE = 255;
+
+    private static final byte[] OGG_MAGIC = { 'O', 'g', 'g', 'S' };
     private static final int MAX_PAGE_SIZE = 65025; // 255 segments * 255 bytes
+    private static final int MAX_LACING_VALUE = 255;
 
     private final OutputStream output;
-    private final int serialNumber;
+    private final int sampleRate;
+    private final int channels;
+    private int serialNumber;
     private int sequenceNumber;
     private long granulePosition;
-    private boolean headerWritten;
-    private boolean closed;
 
-    public OggOpusWriter(OutputStream output) {
+    public OggOpusWriter(OutputStream output, int sampleRate, int channels) {
         this.output = output;
-        this.serialNumber = new Random().nextInt();
+        this.sampleRate = sampleRate;
+        this.channels = channels;
+        this.serialNumber = (int) (System.currentTimeMillis() & 0x7FFFFFFF);
         this.sequenceNumber = 0;
         this.granulePosition = 0;
-        this.headerWritten = false;
-        this.closed = false;
     }
 
     /**
-     * Write the Ogg Opus header pages (ID header + Comment header)
+     * Write the Ogg Opus ID header (OpusHead)
      */
     public void writeHeaders() throws IOException {
-        if (headerWritten) {
-            return;
-        }
+        // OpusHead packet
+        ByteBuffer idHeader = ByteBuffer.allocate(19);
+        idHeader.order(ByteOrder.LITTLE_ENDIAN);
+        idHeader.put("OpusHead".getBytes()); // Magic signature
+        idHeader.put((byte) 1); // Version
+        idHeader.put((byte) channels); // Channel count
+        idHeader.putShort((short) 0); // Pre-skip (3840 samples at 48kHz = 80ms)
+        idHeader.putInt(sampleRate); // Original sample rate
+        idHeader.putShort((short) 0); // Output gain (0 dB)
+        idHeader.put((byte) 0); // Channel mapping family (0 = mono/stereo)
 
-        // Write ID Header
-        writeIdHeader();
+        writePage(idHeader.array(), 0, true, false, false);
 
-        // Write Comment Header
-        writeCommentHeader();
-
-        headerWritten = true;
-    }
-
-    private void writeIdHeader() throws IOException {
-        ByteBuffer header = ByteBuffer.allocate(19);
-        header.order(ByteOrder.LITTLE_ENDIAN);
-
-        // OpusHead
-        header.put("OpusHead".getBytes());
-        header.put((byte) 1); // Version
-        header.put((byte) AudioConfig.CHANNELS); // Channel count
-        header.putShort((short) 0); // Pre-skip (0 for simplicity)
-        header.putInt(AudioConfig.SAMPLE_RATE); // Original sample rate
-        header.putShort((short) 0); // Output gain (0 dB)
-        header.put((byte) 0); // Channel mapping family (0 = mono/stereo)
-
-        writeOggPage(header.array(), 0, true, false);
-    }
-
-    private void writeCommentHeader() throws IOException {
+        // OpusTags packet (comment header)
         String vendor = "Sleepy Recorder";
-        ByteBuffer header = ByteBuffer.allocate(8 + 4 + vendor.length() + 4);
-        header.order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer tagsHeader = ByteBuffer.allocate(
+            8 + 4 + vendor.length() + 4
+        );
+        tagsHeader.order(ByteOrder.LITTLE_ENDIAN);
+        tagsHeader.put("OpusTags".getBytes()); // Magic signature
+        tagsHeader.putInt(vendor.length()); // Vendor string length
+        tagsHeader.put(vendor.getBytes()); // Vendor string
+        tagsHeader.putInt(0); // User comment list length (no comments)
 
-        // OpusTags
-        header.put("OpusTags".getBytes());
-        header.putInt(vendor.length());
-        header.put(vendor.getBytes());
-        header.putInt(0); // User comment list length
-
-        writeOggPage(header.array(), 0, false, false);
+        writePage(tagsHeader.array(), 0, false, false, false);
     }
 
     /**
-     * Write an Opus packet to the Ogg stream
+     * Write an Opus audio packet
+     * @param packet Encoded Opus packet
+     * @param samplesInPacket Number of PCM samples represented by this packet (for granule position)
      */
-    public void writePacket(byte[] packet, int length) throws IOException {
-        if (!headerWritten) {
-            writeHeaders();
-        }
+    public void writeAudioPacket(byte[] packet, int samplesInPacket)
+        throws IOException {
+        granulePosition += samplesInPacket;
+        writePage(packet, granulePosition, false, false, false);
+    }
 
-        // Update granule position (samples encoded)
-        granulePosition += AudioConfig.FRAME_SIZE_SAMPLES;
-
-        writeOggPage(packet, length, false, false);
+    /**
+     * Finalize the stream (write final page)
+     */
+    public void finalizeStream() throws IOException {
+        // Write an empty final page with EOS flag
+        writePage(new byte[0], granulePosition, false, false, true);
+        output.flush();
     }
 
     /**
      * Write an Ogg page
      */
-    private void writeOggPage(byte[] data, int length, boolean isBeginOfStream, boolean isEndOfStream)
-            throws IOException {
-        if (length > MAX_PAGE_SIZE) {
-            throw new IOException("Packet too large for single Ogg page: " + length);
-        }
-
-        // Calculate number of segments
-        int numSegments = (length + MAX_SEGMENT_SIZE - 1) / MAX_SEGMENT_SIZE;
-        if (numSegments == 0) {
-            numSegments = 1;
-        }
-
-        // Build Ogg page header (27 bytes + segment table)
-        ByteBuffer pageHeader = ByteBuffer.allocate(27 + numSegments);
-        pageHeader.order(ByteOrder.LITTLE_ENDIAN);
-
-        // Capture pattern
-        pageHeader.put(OGG_MAGIC);
-
-        // Version
-        pageHeader.put((byte) 0);
-
-        // Header type flags
+    private void writePage(
+        byte[] data,
+        long granulePos,
+        boolean bos,
+        boolean continued,
+        boolean eos
+    ) throws IOException {
+        // Build header type flags
         byte headerType = 0;
-        if (isBeginOfStream) headerType |= 0x02;
-        if (isEndOfStream) headerType |= 0x04;
-        pageHeader.put(headerType);
+        if (continued) headerType |= 0x01;
+        if (bos) headerType |= 0x02;
+        if (eos) headerType |= 0x04;
 
-        // Granule position
-        pageHeader.putLong(granulePosition);
+        // Calculate segment table
+        int numSegments =
+            (data.length + MAX_LACING_VALUE - 1) / MAX_LACING_VALUE;
+        if (data.length == 0) numSegments = 1; // At least one segment for empty packets
 
-        // Serial number
-        pageHeader.putInt(serialNumber);
-
-        // Sequence number
-        pageHeader.putInt(sequenceNumber++);
-
-        // CRC (placeholder, will calculate later)
-        int crcPos = pageHeader.position();
-        pageHeader.putInt(0);
-
-        // Number of segments
-        pageHeader.put((byte) numSegments);
-
-        // Segment table
-        int remaining = length;
+        byte[] segmentTable = new byte[numSegments];
+        int remaining = data.length;
         for (int i = 0; i < numSegments; i++) {
-            int segmentSize = Math.min(remaining, MAX_SEGMENT_SIZE);
-            pageHeader.put((byte) segmentSize);
-            remaining -= segmentSize;
+            if (remaining >= MAX_LACING_VALUE) {
+                segmentTable[i] = (byte) MAX_LACING_VALUE;
+                remaining -= MAX_LACING_VALUE;
+            } else {
+                segmentTable[i] = (byte) remaining;
+                remaining = 0;
+            }
         }
 
-        byte[] headerBytes = pageHeader.array();
+        // Build page header (without CRC)
+        ByteBuffer header = ByteBuffer.allocate(27 + numSegments);
+        header.order(ByteOrder.LITTLE_ENDIAN);
+        header.put(OGG_MAGIC); // Capture pattern
+        header.put((byte) 0); // Stream structure version
+        header.put(headerType); // Header type flags
+        header.putLong(granulePos); // Granule position
+        header.putInt(serialNumber); // Bitstream serial number
+        header.putInt(sequenceNumber); // Page sequence number
+        header.putInt(0); // CRC checksum (placeholder)
+        header.put((byte) numSegments); // Number of page segments
+        header.put(segmentTable); // Segment table
 
         // Calculate CRC
-        int crc = calculateCrc(headerBytes, data, length);
-        ByteBuffer.wrap(headerBytes, crcPos, 4).order(ByteOrder.LITTLE_ENDIAN).putInt(crc);
+        CRC32 crc = new CRC32();
+        crc.update(header.array());
+        crc.update(data);
+        long crcValue = crc.getValue();
 
-        // Write page
-        output.write(headerBytes);
-        output.write(data, 0, length);
-    }
+        // Write CRC into header
+        header.putInt(22, (int) crcValue);
 
-    /**
-     * Calculate CRC-32 for Ogg page
-     */
-    private int calculateCrc(byte[] header, byte[] data, int dataLength) {
-        int crc = 0;
+        // Write page to output
+        output.write(header.array());
+        output.write(data);
 
-        for (byte b : header) {
-            crc = (crc << 8) ^ CRC_LOOKUP[(crc >>> 24) ^ (b & 0xFF)];
-        }
-
-        for (int i = 0; i < dataLength; i++) {
-            crc = (crc << 8) ^ CRC_LOOKUP[(crc >>> 24) ^ (data[i] & 0xFF)];
-        }
-
-        return crc;
+        sequenceNumber++;
     }
 
     @Override
     public void close() throws IOException {
-        if (!closed) {
-            // Write final page with end-of-stream flag
-            writeOggPage(new byte[0], 0, false, true);
-            output.close();
-            closed = true;
-        }
-    }
-
-    // CRC lookup table for Ogg
-    private static final int[] CRC_LOOKUP = new int[256];
-    static {
-        for (int i = 0; i < 256; i++) {
-            int r = i << 24;
-            for (int j = 0; j < 8; j++) {
-                if ((r & 0x80000000) != 0) {
-                    r = (r << 1) ^ 0x04c11db7;
-                } else {
-                    r <<= 1;
-                }
-            }
-            CRC_LOOKUP[i] = r;
-        }
+        output.close();
     }
 }

@@ -35,6 +35,12 @@ public class MainController {
     private Button stopButton;
 
     @FXML
+    private Button saveButton;
+
+    @FXML
+    private Button discardButton;
+
+    @FXML
     private Button openButton;
 
     @FXML
@@ -56,6 +62,7 @@ public class MainController {
     private AudioPlayer player;
     private AudioAnalyzer analyzer;
     private File currentFile;
+    private File tempRecordingFile;
     private ObservableList<NoiseEvent> events;
 
     public MainController() {
@@ -77,7 +84,7 @@ public class MainController {
         eventsListView.setCellFactory(param -> new NoiseEventCell());
 
         // Set initial button states
-        updateButtonStates(false, false);
+        updateButtonStates(false, false, false);
 
         // Handle event selection for playback
         eventsListView
@@ -93,14 +100,17 @@ public class MainController {
     @FXML
     private void handleRecord() {
         try {
-            // Generate filename with timestamp
+            // Create temporary file for recording
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(
                 new Date()
             );
-            File recordingFile = new File("recording_" + timestamp + ".wav");
+            tempRecordingFile = new File(
+                System.getProperty("java.io.tmpdir"),
+                "sleepy_temp_" + timestamp + ".ogg"
+            );
 
             recorder.startRecording(
-                recordingFile,
+                tempRecordingFile,
                 new AudioRecorder.RecordingCallback() {
                     @Override
                     public void onAudioData(byte[] data, int length) {
@@ -110,9 +120,12 @@ public class MainController {
                     @Override
                     public void onRecordingComplete(File file) {
                         Platform.runLater(() -> {
+                            updateStatus(
+                                "Recording complete. Save or discard?"
+                            );
+                            updateButtonStates(false, false, true);
+                            // Set temp file as current for analysis and playback
                             currentFile = file;
-                            updateStatus("Recording saved: " + file.getName());
-                            updateButtonStates(false, false);
                             analyzeCurrentFile();
                         });
                     }
@@ -121,14 +134,15 @@ public class MainController {
                     public void onError(Exception e) {
                         Platform.runLater(() -> {
                             showError("Recording error", e.getMessage());
-                            updateButtonStates(false, false);
+                            updateButtonStates(false, false, false);
+                            cleanupTempFile();
                         });
                     }
                 }
             );
 
             updateStatus("Recording...");
-            updateButtonStates(true, false);
+            updateButtonStates(true, false, false);
         } catch (LineUnavailableException e) {
             showError(
                 "Recording error",
@@ -144,6 +158,77 @@ public class MainController {
     }
 
     @FXML
+    private void handleSave() {
+        if (tempRecordingFile == null || !tempRecordingFile.exists()) {
+            showError("Save error", "No recording to save");
+            return;
+        }
+
+        // Show save dialog
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Recording");
+
+        // Generate default filename with timestamp
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(
+            new Date()
+        );
+        fileChooser.setInitialFileName("recording_" + timestamp + ".ogg");
+
+        // Set file extension filter
+        fileChooser
+            .getExtensionFilters()
+            .add(new FileChooser.ExtensionFilter("Ogg Opus Audio", "*.ogg"));
+
+        File savedFile = fileChooser.showSaveDialog(
+            saveButton.getScene().getWindow()
+        );
+
+        if (savedFile == null) {
+            return; // User cancelled
+        }
+
+        try {
+            // Move temp file to final location
+            java.nio.file.Files.move(
+                tempRecordingFile.toPath(),
+                savedFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
+
+            currentFile = savedFile;
+            tempRecordingFile = null;
+
+            updateStatus("Recording saved: " + savedFile.getName());
+            updateButtonStates(false, false, false);
+        } catch (Exception e) {
+            showError(
+                "Save error",
+                "Failed to save recording: " + e.getMessage()
+            );
+        }
+    }
+
+    @FXML
+    private void handleDiscard() {
+        if (tempRecordingFile == null) {
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Discard Recording");
+        confirm.setHeaderText("Are you sure?");
+        confirm.setContentText("This will permanently delete the recording.");
+
+        if (confirm.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK) {
+            cleanupTempFile();
+            currentFile = null;
+            events.clear();
+            updateStatus("Recording discarded");
+            updateButtonStates(false, false, false);
+        }
+    }
+
+    @FXML
     private void handleOpen() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Open Audio File");
@@ -151,18 +236,14 @@ public class MainController {
             .getExtensionFilters()
             .addAll(
                 new FileChooser.ExtensionFilter(
-                    "All Audio Files",
-                    "*.opus",
+                    "Supported Audio Files",
+                    "*.wav",
                     "*.ogg",
-                    "*.m4a",
-                    "*.mp3",
-                    "*.wav"
+                    "*.opus"
                 ),
-                new FileChooser.ExtensionFilter("Opus Audio", "*.opus"),
-                new FileChooser.ExtensionFilter("OGG Audio", "*.ogg"),
-                new FileChooser.ExtensionFilter("M4A Audio", "*.m4a"),
-                new FileChooser.ExtensionFilter("MP3 Audio", "*.mp3"),
-                new FileChooser.ExtensionFilter("WAV Audio", "*.wav")
+                new FileChooser.ExtensionFilter("WAV Audio", "*.wav"),
+                new FileChooser.ExtensionFilter("OGG Vorbis", "*.ogg"),
+                new FileChooser.ExtensionFilter("Opus Audio", "*.opus")
             );
 
         File file = fileChooser.showOpenDialog(
@@ -231,6 +312,27 @@ public class MainController {
 
     private void analyzeCurrentFile() {
         if (currentFile == null) {
+            return;
+        }
+
+        // Check if file format is supported before attempting analysis
+        String fileName = currentFile.getName().toLowerCase();
+        if (fileName.endsWith(".m4a")) {
+            showError(
+                "Unsupported Format",
+                "M4A files are not supported.\n\n" +
+                    "Please convert to WAV or OGG Vorbis format.\n" +
+                    "You can use ffmpeg: ffmpeg -i input.m4a output.ogg"
+            );
+            return;
+        }
+        if (fileName.endsWith(".mp3")) {
+            showError(
+                "Unsupported Format",
+                "MP3 files are not reliably supported.\n\n" +
+                    "Please convert to WAV or OGG Vorbis format.\n" +
+                    "You can use ffmpeg: ffmpeg -i input.mp3 output.ogg"
+            );
             return;
         }
 
@@ -314,11 +416,24 @@ public class MainController {
             .start();
     }
 
-    private void updateButtonStates(boolean recording, boolean playing) {
-        recordButton.setDisable(recording);
+    private void updateButtonStates(
+        boolean recording,
+        boolean playing,
+        boolean hasUnsavedRecording
+    ) {
+        recordButton.setDisable(recording || hasUnsavedRecording);
         stopButton.setDisable(!recording);
-        openButton.setDisable(recording);
+        saveButton.setDisable(!hasUnsavedRecording);
+        discardButton.setDisable(!hasUnsavedRecording);
+        openButton.setDisable(recording || hasUnsavedRecording);
         stopPlayButton.setDisable(!playing);
+    }
+
+    private void cleanupTempFile() {
+        if (tempRecordingFile != null && tempRecordingFile.exists()) {
+            tempRecordingFile.delete();
+            tempRecordingFile = null;
+        }
     }
 
     private void updateStatus(String message) {
@@ -347,6 +462,7 @@ public class MainController {
         if (player != null && player.isPlaying()) {
             player.stop();
         }
+        cleanupTempFile();
     }
 
     /**

@@ -10,18 +10,13 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.PowerManager;
 import androidx.core.app.NotificationCompat;
-
-import com.sleepy.recorder.core.AudioConfig;
-import com.sleepy.recorder.core.codec.OggOpusWriter;
-import com.sleepy.recorder.core.codec.OpusEncoder;
-
 import java.io.File;
-import java.io.FileOutputStream;
 
 /**
  * Foreground service for background audio recording
  */
 public class RecordingService extends Service {
+
     private static final String CHANNEL_ID = "RecordingChannel";
     private static final int NOTIFICATION_ID = 1;
 
@@ -31,6 +26,7 @@ public class RecordingService extends Service {
     private RecordingCallback callback;
 
     public class RecordingBinder extends Binder {
+
         RecordingService getService() {
             return RecordingService.this;
         }
@@ -42,8 +38,13 @@ public class RecordingService extends Service {
         createNotificationChannel();
 
         // Acquire wake lock
-        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SleepyRecorder::Recording");
+        PowerManager powerManager = (PowerManager) getSystemService(
+            POWER_SERVICE
+        );
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "SleepyRecorder::Recording"
+        );
     }
 
     @Override
@@ -83,35 +84,42 @@ public class RecordingService extends Service {
         try {
             wakeLock.acquire();
 
-            recorder.startRecording(outputFile, new AndroidAudioRecorder.RecordingCallback() {
-                @Override
-                public void onAudioData(byte[] data, int length) {
-                    if (RecordingService.this.callback != null) {
-                        RecordingService.this.callback.onAudioData(data, length);
+            recorder.startRecording(
+                outputFile,
+                new AndroidAudioRecorder.RecordingCallback() {
+                    @Override
+                    public void onAudioData(byte[] data, int length) {
+                        if (RecordingService.this.callback != null) {
+                            RecordingService.this.callback.onAudioData(
+                                data,
+                                length
+                            );
+                        }
                     }
-                }
 
-                @Override
-                public void onRecordingComplete(File file) {
-                    if (RecordingService.this.callback != null) {
-                        RecordingService.this.callback.onRecordingComplete(file);
+                    @Override
+                    public void onRecordingComplete(File file) {
+                        if (RecordingService.this.callback != null) {
+                            RecordingService.this.callback.onRecordingComplete(
+                                file
+                            );
+                        }
+                        stopForeground(true);
+                        stopSelf();
                     }
-                    stopForeground(true);
-                    stopSelf();
-                }
 
-                @Override
-                public void onError(Exception e) {
-                    if (RecordingService.this.callback != null) {
-                        RecordingService.this.callback.onError(e);
+                    @Override
+                    public void onError(Exception e) {
+                        if (RecordingService.this.callback != null) {
+                            RecordingService.this.callback.onError(e);
+                        }
+                        stopForeground(true);
+                        stopSelf();
                     }
-                    stopForeground(true);
-                    stopSelf();
                 }
-            });
+            );
 
             updateNotification("Recording in progress");
-
         } catch (Exception e) {
             if (callback != null) {
                 callback.onError(e);
@@ -137,34 +145,41 @@ public class RecordingService extends Service {
 
     private void createNotificationChannel() {
         NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                "Recording Service",
-                NotificationManager.IMPORTANCE_LOW
+            CHANNEL_ID,
+            "Recording Service",
+            NotificationManager.IMPORTANCE_LOW
         );
         channel.setDescription("Ongoing audio recording");
 
-        NotificationManager manager = getSystemService(NotificationManager.class);
+        NotificationManager manager = getSystemService(
+            NotificationManager.class
+        );
         manager.createNotificationChannel(channel);
     }
 
     private Notification createNotification(String text) {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
-                this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE
+            this,
+            0,
+            notificationIntent,
+            PendingIntent.FLAG_IMMUTABLE
         );
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Sleepy Recorder")
-                .setContentText(text)
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setContentIntent(pendingIntent)
-                .setOngoing(true)
-                .build();
+            .setContentTitle("Sleepy Recorder")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .build();
     }
 
     private void updateNotification(String text) {
         Notification notification = createNotification(text);
-        NotificationManager manager = getSystemService(NotificationManager.class);
+        NotificationManager manager = getSystemService(
+            NotificationManager.class
+        );
         manager.notify(NOTIFICATION_ID, notification);
     }
 

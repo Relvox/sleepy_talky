@@ -3,14 +3,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:paddingTop="48dp"
+    android:fitsSystemWindows="true">
 
-    <!-- Recording controls -->
+    <!-- First row: Record, Stop, Open -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center">
+        android:orientation="horizontal">
 
         <Button
             android:id="@+id/recordButton"
@@ -36,6 +37,31 @@
             android:layout_weight="1"
             android:layout_margin="4dp"
             android:text="Open File" />
+    </LinearLayout>
+
+    <!-- Second row: Save, Discard -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/saveButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:text="Save Recording"
+            android:enabled="false" />
+
+        <Button
+            android:id="@+id/discardButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:text="Discard"
+            android:enabled="false" />
     </LinearLayout>
 
     <!-- Progress bar -->
