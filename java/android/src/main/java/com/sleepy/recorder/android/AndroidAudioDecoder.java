@@ -73,6 +73,61 @@ public class AndroidAudioDecoder {
     }
 
     /**
+     * Decode Ogg Opus file using streaming (callback-based, memory-efficient)
+     */
+    public static void decodeStreaming(
+        File audioFile,
+        ChunkCallback chunkCallback,
+        ProgressCallback progressCallback
+    ) throws IOException {
+        if (!isOpusFile(audioFile)) {
+            throw new IOException(
+                "Only Ogg Opus files are supported on Android"
+            );
+        }
+
+        try (
+            FileInputStream fis = new FileInputStream(audioFile);
+            OggOpusReader reader = new OggOpusReader(fis);
+            OpusDecoder decoder = new OpusDecoder()
+        ) {
+            reader.readHeaders();
+
+            long currentTimeMs = 0;
+            byte[] packet;
+            long totalBytes = audioFile.length();
+            int packetCount = 0;
+
+            while ((packet = reader.readPacket()) != null) {
+                packetCount++;
+                byte[] pcmData = decoder.decode(packet, packet.length);
+
+                // Invoke callback with decoded chunk
+                chunkCallback.onChunk(currentTimeMs, pcmData);
+
+                // Update time based on sample count
+                int sampleCount = pcmData.length / 2; // 16-bit = 2 bytes per sample
+                currentTimeMs +=
+                    (sampleCount * 1000L) / AudioConfig.SAMPLE_RATE;
+
+                // Report progress
+                if (progressCallback != null) {
+                    double progress = Math.min(
+                        1.0,
+                        (double) fis.getChannel().position() / totalBytes
+                    );
+                    progressCallback.onProgress(progress);
+                }
+            }
+        } catch (Exception e) {
+            throw new IOException(
+                "Failed to decode Opus file: " + e.getMessage(),
+                e
+            );
+        }
+    }
+
+    /**
      * Calculate RMS volume from PCM data
      */
     public static double calculateRms(byte[] pcmData) {
