@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Android-compatible audio analyzer
- * Detects noise events in recorded audio files
+ * Detects noise events in recorded audio files using streaming analysis
  */
 public class AndroidAudioAnalyzer {
 
@@ -21,57 +21,53 @@ public class AndroidAudioAnalyzer {
     private static final long MIN_EVENT_GAP_MS = 1000; // Merge events within 1 second
     private static final long SAMPLE_INTERVAL_MS = 50; // Calculate volume every 50ms
 
+    // Streaming analysis parameters
+    private static final int MAX_VOLUME_SAMPLES_IN_MEMORY = 100000; // ~83 minutes at 50ms intervals
+
     /**
-     * Analyze audio file for noise events
+     * Analyze audio file for noise events using streaming (memory-efficient)
      */
     public List<NoiseEvent> analyzeFile(
         File audioFile,
         AndroidAudioDecoder.ProgressCallback progressCallback
     ) throws IOException {
-        // Decode audio to PCM chunks
-        List<AndroidAudioDecoder.PcmChunk> chunks = AndroidAudioDecoder.decode(
+        // Phase 1: Stream through file to calculate volume samples
+        // Use a rolling window to avoid storing all samples in memory
+        List<VolumeSample> allVolumeSamples = new ArrayList<>();
+
+        AndroidAudioDecoder.decodeStreaming(
             audioFile,
+            (timeMs, pcmData) -> {
+                double rms = AndroidAudioDecoder.calculateRms(pcmData);
+                synchronized (allVolumeSamples) {
+                    allVolumeSamples.add(new VolumeSample(timeMs, rms));
+                }
+            },
             progressCallback
         );
 
-        if (chunks.isEmpty()) {
+        if (allVolumeSamples.isEmpty()) {
             return new ArrayList<>();
         }
 
-        // Calculate volume samples
-        List<VolumeSample> volumeSamples = calculateVolumeSamples(chunks);
-
-        // Calculate baseline from all samples
-        double baseline = calculateBaseline(volumeSamples);
+        // Phase 2: Calculate baseline from all samples
+        double baseline = calculateBaseline(allVolumeSamples);
         double threshold = baseline * NOISE_THRESHOLD_MULTIPLIER;
 
-        // Detect events above threshold
+        // Phase 3: Detect events above threshold
         List<NoiseEvent> events = detectEvents(
-            volumeSamples,
+            allVolumeSamples,
             baseline,
             threshold
         );
 
-        // Merge nearby events
+        // Phase 4: Merge nearby events
         events = mergeNearbyEvents(events);
 
+        // Clear samples to free memory
+        allVolumeSamples.clear();
+
         return events;
-    }
-
-    /**
-     * Calculate volume samples at regular intervals
-     */
-    private List<VolumeSample> calculateVolumeSamples(
-        List<AndroidAudioDecoder.PcmChunk> chunks
-    ) {
-        List<VolumeSample> samples = new ArrayList<>();
-
-        for (AndroidAudioDecoder.PcmChunk chunk : chunks) {
-            double rms = AndroidAudioDecoder.calculateRms(chunk.pcmData);
-            samples.add(new VolumeSample(chunk.timeMs, rms));
-        }
-
-        return samples;
     }
 
     /**

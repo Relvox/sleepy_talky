@@ -3,7 +3,6 @@ package com.sleepy.recorder.android;
 import com.sleepy.recorder.core.AudioConfig;
 import com.sleepy.recorder.core.codec.OggOpusReader;
 import com.sleepy.recorder.core.codec.OpusDecoder;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -19,17 +18,23 @@ public class AndroidAudioDecoder {
     /**
      * Decode Ogg Opus file to PCM chunks
      */
-    public static List<PcmChunk> decode(File audioFile, ProgressCallback progressCallback) throws IOException {
+    public static List<PcmChunk> decode(
+        File audioFile,
+        ProgressCallback progressCallback
+    ) throws IOException {
         if (!isOpusFile(audioFile)) {
-            throw new IOException("Only Ogg Opus files are supported on Android");
+            throw new IOException(
+                "Only Ogg Opus files are supported on Android"
+            );
         }
 
         List<PcmChunk> chunks = new ArrayList<>();
 
-        try (FileInputStream fis = new FileInputStream(audioFile);
-             OggOpusReader reader = new OggOpusReader(fis);
-             OpusDecoder decoder = new OpusDecoder()) {
-
+        try (
+            FileInputStream fis = new FileInputStream(audioFile);
+            OggOpusReader reader = new OggOpusReader(fis);
+            OpusDecoder decoder = new OpusDecoder()
+        ) {
             reader.readHeaders();
 
             long currentTimeMs = 0;
@@ -45,16 +50,23 @@ public class AndroidAudioDecoder {
 
                 // Update time based on sample count
                 int sampleCount = pcmData.length / 2; // 16-bit = 2 bytes per sample
-                currentTimeMs += (sampleCount * 1000L) / AudioConfig.SAMPLE_RATE;
+                currentTimeMs +=
+                    (sampleCount * 1000L) / AudioConfig.SAMPLE_RATE;
 
                 // Report progress
                 if (progressCallback != null) {
-                    double progress = Math.min(1.0, (double) fis.getChannel().position() / totalBytes);
+                    double progress = Math.min(
+                        1.0,
+                        (double) fis.getChannel().position() / totalBytes
+                    );
                     progressCallback.onProgress(progress);
                 }
             }
         } catch (Exception e) {
-            throw new IOException("Failed to decode Opus file: " + e.getMessage(), e);
+            throw new IOException(
+                "Failed to decode Opus file: " + e.getMessage(),
+                e
+            );
         }
 
         return chunks;
@@ -69,7 +81,8 @@ public class AndroidAudioDecoder {
 
         for (int i = 0; i < pcmData.length - 1; i += 2) {
             // Little-endian 16-bit PCM
-            short sample = (short) ((pcmData[i] & 0xFF) | ((pcmData[i + 1] & 0xFF) << 8));
+            short sample = (short) ((pcmData[i] & 0xFF) |
+                ((pcmData[i + 1] & 0xFF) << 8));
             double normalized = sample / 32768.0; // Normalize to -1.0 to 1.0
             sumSquares += normalized * normalized;
             sampleCount++;
@@ -89,8 +102,12 @@ public class AndroidAudioDecoder {
             }
 
             // Check for Ogg magic: "OggS"
-            if (header[0] != 'O' || header[1] != 'g' ||
-                header[2] != 'g' || header[3] != 'S') {
+            if (
+                header[0] != 'O' ||
+                header[1] != 'g' ||
+                header[2] != 'g' ||
+                header[3] != 'S'
+            ) {
                 return false;
             }
 
@@ -106,6 +123,7 @@ public class AndroidAudioDecoder {
      * PCM chunk with timestamp
      */
     public static class PcmChunk {
+
         public final long timeMs;
         public final byte[] pcmData;
 
@@ -113,6 +131,13 @@ public class AndroidAudioDecoder {
             this.timeMs = timeMs;
             this.pcmData = pcmData;
         }
+    }
+
+    /**
+     * Chunk callback interface for streaming decode
+     */
+    public interface ChunkCallback {
+        void onChunk(long timeMs, byte[] pcmData);
     }
 
     /**
